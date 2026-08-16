@@ -1,27 +1,226 @@
-# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
-# All rights reserved.
-#
-# SPDX-License-Identifier: BSD-3-Clause
+"""Reward functions for canonical one-foot standing."""
 
 from __future__ import annotations
 
+import math
 from typing import TYPE_CHECKING
 
 import torch
 
 from isaaclab.assets import Articulation
-from isaaclab.managers import SceneEntityCfg
-from isaaclab.utils.math import wrap_to_pi
+from isaaclab.managers import ManagerTermBase, RewardTermCfg, SceneEntityCfg
+from isaaclab.sensors import ContactSensor
+from isaaclab.utils.math import quat_apply, quat_apply_inverse, yaw_quat
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedRLEnv
 
 
-def joint_pos_target_l2(env: ManagerBasedRLEnv, target: float, asset_cfg: SceneEntityCfg) -> torch.Tensor:
-    """Penalize joint position deviation from a target value."""
-    # extract the used quantities (to enable type-hinting)
-    asset: Articulation = env.scene[asset_cfg.name]
-    # wrap the joint positions to (-pi, pi)
-    joint_pos = wrap_to_pi(asset.data.joint_pos[:, asset_cfg.joint_ids])
-    # compute the reward
-    return torch.sum(torch.square(joint_pos - target), dim=1)
+def base_linear_velocity_zero(
+    env: ManagerBasedRLEnv, std: float, asset_cfg: SceneEntityCfg
+) -> torch.Tensor:
+    """Reward a stationary base, including vertical motion."""
+
+    if std <= 0.0:
+        raise ValueError("std must be positive.")
+    robot: Articulation = env.scene[asset_cfg.name]
+    speed_sq = torch.sum(torch.square(robot.data.root_lin_vel_w), dim=1)
+    return torch.exp(-speed_sq / std**2)
+
+
+def base_angular_velocity_zero(
+    env: ManagerBasedRLEnv, std: float, asset_cfg: SceneEntityCfg
+) -> torch.Tensor:
+    """Reward zero roll, pitch, and yaw angular velocity."""
+
+    if std <= 0.0:
+        raise ValueError("std must be positive.")
+    robot: Articulation = env.scene[asset_cfg.name]
+    speed_sq = torch.sum(torch.square(robot.data.root_ang_vel_w), dim=1)
+    return torch.exp(-speed_sq / std**2)
+
+
+def base_acceleration_l2(
+    env: ManagerBasedRLEnv, axis: str, asset_cfg: SceneEntityCfg
+) -> torch.Tensor:
+    """Penalize squared base acceleration on x/y in yaw frame or z in world."""
+
+    robot: Articulation = env.scene[asset_cfg.name]
+    base_acc_w = robot.data.body_lin_acc_w[:, asset_cfg.body_ids[0], :]
+
+    if axis in ("x", "y"):
+        base_acc_yaw = quat_apply_inverse(yaw_quat(robot.data.root_quat_w), base_acc_w)
+        return torch.square(base_acc_yaw[:, 0 if axis == "x" else 1])
+    if axis == "z":
+        return torch.square(base_acc_w[:, 2])
+    raise ValueError(f"Unsupported acceleration axis {axis!r}; use 'x', 'y', or 'z'.")
+
+
+def joint_torque_over_nominal(
+    env: ManagerBasedRLEnv,
+    nominal_torque: float,
+    asset_cfg: SceneEntityCfg,
+) -> torch.Tensor:
+    """Penalize only applied torque above the nominal actuator torque."""
+
+    if nominal_torque <= 0.0:
+        raise ValueError("nominal_torque must be positive.")
+    robot: Articulation = env.scene[asset_cfg.name]
+    applied_torque = torch.abs(robot.data.applied_torque[:, asset_cfg.joint_ids])
+    return torch.sum(torch.clamp(applied_torque - nominal_torque, min=0.0), dim=1)
+
+
+def is_any_terminated_term(
+    env: ManagerBasedRLEnv, term_keys: str | list[str]
+) -> torch.Tensor:
+    """Return one when any selected non-timeout termination is active."""
+
+    terminated = torch.zeros(env.num_envs, dtype=torch.bool, device=env.device)
+    for term_name in env.termination_manager.find_terms(term_keys):
+        terminated |= env.termination_manager.get_term(term_name).bool()
+    return terminated.float()
+
+
+def support_foot_no_slide(
+    env: ManagerBasedRLEnv,
+    command_name: str,
+    std: float,
+    asset_cfg: SceneEntityCfg,
+    sensor_cfg: SceneEntityCfg,
+) -> torch.Tensor:
+    """Reward the selected support foot for remaining still while in contact."""
+
+    if std <= 0.0:
+        raise ValueError("std must be positive.")
+    robot: Articulation = env.scene[asset_cfg.name]
+    sensor: ContactSensor = env.scene.sensors[sensor_cfg.name]
+    support_index = env.command_manager.get_command(command_name)[:, 1].long()
+    rows = torch.arange(env.num_envs, device=env.device)
+
+    foot_velocity_xy = robot.data.body_lin_vel_w[:, asset_cfg.body_ids, :2]
+    selected_velocity = foot_velocity_xy[rows, support_index]
+    in_contact = sensor.data.current_contact_time[:, sensor_cfg.body_ids] > 0.0
+    support_contact = in_contact[rows, support_index]
+    return (
+        torch.exp(-torch.sum(torch.square(selected_velocity), dim=1) / std**2)
+        * support_contact.float()
+    )
+
+
+def ground_contact_flatness_with_landing_bonus(
+    env: ManagerBasedRLEnv,
+    flat_tolerance: float,
+    penalty_start_angle: float,
+    landing_bonus: float,
+    asset_cfg: SceneEntityCfg,
+    sensor_cfg: SceneEntityCfg,
+) -> torch.Tensor:
+    """Score both contacting feet and add emphasis on each touchdown frame."""
+
+    if flat_tolerance < 0.0:
+        raise ValueError("flat_tolerance must be non-negative.")
+    if not flat_tolerance < penalty_start_angle < 0.5 * math.pi:
+        raise ValueError("penalty_start_angle must be between tolerance and 90 degrees.")
+    if landing_bonus < 0.0:
+        raise ValueError("landing_bonus must be non-negative.")
+
+    robot: Articulation = env.scene[asset_cfg.name]
+    sensor: ContactSensor = env.scene.sensors[sensor_cfg.name]
+    foot_quat_w = robot.data.body_quat_w[:, asset_cfg.body_ids]
+    contact_time = sensor.data.current_contact_time[:, sensor_cfg.body_ids]
+    if foot_quat_w.shape[1] != contact_time.shape[1]:
+        raise ValueError("asset_cfg and sensor_cfg must resolve the same feet.")
+
+    sole_normal_b = torch.zeros_like(foot_quat_w[..., 1:])
+    sole_normal_b[..., 2] = 1.0
+    sole_normal_w = quat_apply(
+        foot_quat_w.reshape(-1, 4), sole_normal_b.reshape(-1, 3)
+    ).reshape_as(sole_normal_b)
+    tilt = torch.atan2(
+        torch.linalg.vector_norm(sole_normal_w[..., :2], dim=-1),
+        sole_normal_w[..., 2],
+    )
+    flat_score = (tilt <= flat_tolerance).float()
+    tilt_penalty = torch.clamp(
+        (tilt - penalty_start_angle) / (0.5 * math.pi - penalty_start_angle),
+        min=0.0,
+        max=1.0,
+    )
+    foot_score = flat_score - tilt_penalty
+    in_contact = contact_time > 0.0
+    contact_count = torch.sum(in_contact, dim=1)
+    contact_score = torch.sum(foot_score * in_contact.float(), dim=1) / torch.clamp(
+        contact_count, min=1
+    )
+
+    first_contact = sensor.compute_first_contact(env.step_dt)[:, sensor_cfg.body_ids]
+    landing_count = torch.sum(first_contact, dim=1)
+    landing_score = torch.sum(foot_score * first_contact.float(), dim=1) / torch.clamp(
+        landing_count, min=1
+    )
+    landing_score *= (landing_count > 0).float()
+    return contact_score + landing_bonus * landing_score
+
+
+class one_foot_command_reward(ManagerTermBase):
+    """Reward the selected support/swing feet according to the binary command."""
+
+    def __init__(self, cfg: RewardTermCfg, env: ManagerBasedRLEnv):
+        super().__init__(cfg, env)
+        sole_vertices = cfg.params["sole_vertices"]
+        if len(sole_vertices) != 2 or any(len(vertices) < 3 for vertices in sole_vertices):
+            raise ValueError("sole_vertices must contain at least three vertices per foot.")
+        self._sole_vertices = torch.tensor(
+            sole_vertices, dtype=torch.float, device=env.device
+        )
+
+    def __call__(
+        self,
+        env: ManagerBasedRLEnv,
+        max_foot_lift_height: float,
+        sole_vertices,
+        command_name: str,
+        asset_cfg: SceneEntityCfg,
+        sensor_cfg: SceneEntityCfg,
+    ) -> torch.Tensor:
+        del sole_vertices
+        if max_foot_lift_height <= 0.0:
+            raise ValueError("max_foot_lift_height must be positive.")
+
+        robot: Articulation = env.scene[asset_cfg.name]
+        sensor: ContactSensor = env.scene.sensors[sensor_cfg.name]
+        foot_pos_w = robot.data.body_pos_w[:, asset_cfg.body_ids]
+        foot_quat_w = robot.data.body_quat_w[:, asset_cfg.body_ids]
+        num_envs, num_feet = foot_pos_w.shape[:2]
+        if num_feet != 2 or self._sole_vertices.shape[0] != 2:
+            raise ValueError("Exactly two ordered feet are required.")
+
+        num_vertices = self._sole_vertices.shape[1]
+        vertices = self._sole_vertices.unsqueeze(0).expand(num_envs, -1, -1, -1)
+        quaternions = foot_quat_w.unsqueeze(2).expand(-1, -1, num_vertices, -1)
+        rotated_vertices = quat_apply(
+            quaternions.reshape(-1, 4), vertices.reshape(-1, 3)
+        ).reshape(num_envs, num_feet, num_vertices, 3)
+        sole_z_w = foot_pos_w[:, :, 2] + torch.amin(rotated_vertices[..., 2], dim=2)
+        ground_z = env.scene.env_origins[:, 2].unsqueeze(1)
+        sole_height = torch.clamp(sole_z_w - ground_z, min=0.0)
+
+        command = env.command_manager.get_command(command_name)
+        lift_command = command[:, 0] > 0.5
+        support_index = command[:, 1].long()
+        swing_index = 1 - support_index
+        rows = torch.arange(env.num_envs, device=env.device)
+
+        in_contact = sensor.data.current_contact_time[:, sensor_cfg.body_ids] > 0.0
+        support_contact = in_contact[rows, support_index]
+        swing_contact = in_contact[rows, swing_index]
+        swing_height = sole_height[rows, swing_index]
+
+        lift_score = torch.clamp(
+            swing_height / max_foot_lift_height, min=0.0, max=1.0
+        )
+        lift_score *= (support_contact & ~swing_contact).float()
+
+        lower_score = 1.0 - swing_height / max_foot_lift_height
+        lower_score *= support_contact.float()
+        return torch.where(lift_command, lift_score, lower_score)
