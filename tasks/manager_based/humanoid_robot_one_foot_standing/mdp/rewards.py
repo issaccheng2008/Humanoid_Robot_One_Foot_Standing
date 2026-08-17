@@ -165,7 +165,7 @@ def swing_foot_airborne(
     command_name: str,
     sensor_cfg: SceneEntityCfg,
 ) -> torch.Tensor:
-    """Reward a grounded support foot with an airborne swing foot during lifting."""
+    """Reward commanded lifting and penalize airborne feet while standing."""
 
     command = env.command_manager.get_command(command_name)
     lift_command = command[:, 0] > 0.5
@@ -177,7 +177,9 @@ def swing_foot_airborne(
     in_contact = sensor.data.current_contact_time[:, sensor_cfg.body_ids] > 0.0
     support_contact = in_contact[rows, support_index]
     swing_contact = in_contact[rows, swing_index]
-    return (lift_command & support_contact & ~swing_contact).float()
+    lift_score = (support_contact & ~swing_contact).float()
+    stand_penalty = -torch.any(~in_contact, dim=1).float()
+    return torch.where(lift_command, lift_score, stand_penalty)
 
 
 class one_foot_command_reward(ManagerTermBase):
@@ -221,9 +223,13 @@ class one_foot_command_reward(ManagerTermBase):
         rotated_vertices = quat_apply(
             quaternions.reshape(-1, 4), vertices.reshape(-1, 3)
         ).reshape(num_envs, num_feet, num_vertices, 3)
-        sole_z_w = foot_pos_w[:, :, 2] + torch.amin(rotated_vertices[..., 2], dim=2)
-        ground_z = env.scene.env_origins[:, 2].unsqueeze(1)
-        sole_height = torch.clamp(sole_z_w - ground_z, min=0.0)
+        sole_vertex_z_w = (
+            foot_pos_w[:, :, 2].unsqueeze(2) + rotated_vertices[..., 2]
+        )
+        ground_z = env.scene.env_origins[:, 2].view(num_envs, 1, 1)
+        sole_vertex_height = torch.clamp(sole_vertex_z_w - ground_z, min=0.0)
+        minimum_sole_height = torch.amin(sole_vertex_height, dim=2)
+        maximum_sole_height = torch.amax(sole_vertex_height, dim=2)
 
         command = env.command_manager.get_command(command_name)
         lift_command = command[:, 0] > 0.5
@@ -234,14 +240,15 @@ class one_foot_command_reward(ManagerTermBase):
         in_contact = sensor.data.current_contact_time[:, sensor_cfg.body_ids] > 0.0
         support_contact = in_contact[rows, support_index]
         swing_contact = in_contact[rows, swing_index]
-        swing_height = sole_height[rows, swing_index]
+        swing_minimum_height = minimum_sole_height[rows, swing_index]
+        swing_maximum_height = maximum_sole_height[rows, swing_index]
 
         lift_score = torch.clamp(
-            swing_height / max_foot_lift_height, min=0.0, max=1.0
+            swing_minimum_height / max_foot_lift_height, min=0.0, max=1.0
         )
         lift_score *= (support_contact & ~swing_contact).float()
 
-        lower_score = 1.0 - swing_height / max_foot_lift_height
+        lower_score = 1.0 - swing_maximum_height / max_foot_lift_height
         lower_score *= support_contact.float()
         return torch.where(
             lift_command,
