@@ -400,7 +400,7 @@ class RewardsCfg:
     )
     ground_contact_flatness = RewTerm(
         func=mdp.ground_contact_flatness_with_landing_bonus,
-        weight=0.5,
+        weight=2,
         params={
             "flat_tolerance": math.radians(3.0),
             "penalty_start_angle": math.radians(5.0),
