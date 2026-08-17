@@ -16,6 +16,22 @@ if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedRLEnv
 
 
+def _proportional_value(
+    start_value: float,
+    final_multiplier: float,
+    current_step: int,
+    start_step: int,
+    end_step: int,
+) -> float:
+    """Geometrically scale a value over a clamped training interval."""
+
+    if not 0.0 < final_multiplier <= 1.0:
+        raise ValueError("final_multiplier must be in the interval (0, 1].")
+    progress = (current_step - start_step) / (end_step - start_step)
+    progress = max(0.0, min(1.0, progress))
+    return start_value * final_multiplier**progress
+
+
 class modify_reward_param_linearly(ManagerTermBase):
     """Linearly move one numeric reward parameter between two values."""
 
@@ -60,3 +76,93 @@ class modify_reward_param_linearly(ManagerTermBase):
             env.reward_manager.set_term_cfg(term_name, self._term_cfg)
 
         return value
+
+
+class modify_reward_param_proportionally(ManagerTermBase):
+    """Proportionally scale one numeric reward parameter between two steps."""
+
+    def __init__(self, cfg: CurriculumTermCfg, env: ManagerBasedRLEnv):
+        super().__init__(cfg, env)
+
+        term_name = cfg.params["term_name"]
+        param_name = cfg.params["param_name"]
+        start_step = cfg.params["start_step"]
+        end_step = cfg.params["end_step"]
+
+        if start_step < 0:
+            raise ValueError("start_step must be non-negative.")
+        if end_step <= start_step:
+            raise ValueError("end_step must be greater than start_step.")
+
+        self._term_cfg = env.reward_manager.get_term_cfg(term_name)
+        if param_name not in self._term_cfg.params:
+            raise ValueError(
+                f"Reward term {term_name!r} has no parameter {param_name!r}."
+            )
+
+    def __call__(
+        self,
+        env: ManagerBasedRLEnv,
+        env_ids: Sequence[int],
+        term_name: str,
+        param_name: str,
+        start_value: float,
+        final_multiplier: float,
+        start_step: int,
+        end_step: int,
+    ) -> float:
+        del env_ids
+
+        value = _proportional_value(
+            start_value,
+            final_multiplier,
+            env.common_step_counter,
+            start_step,
+            end_step,
+        )
+        if self._term_cfg.params[param_name] != value:
+            self._term_cfg.params[param_name] = value
+            env.reward_manager.set_term_cfg(term_name, self._term_cfg)
+
+        return value
+
+
+class modify_reward_weight_proportionally(ManagerTermBase):
+    """Proportionally scale a reward term's manager-level weight."""
+
+    def __init__(self, cfg: CurriculumTermCfg, env: ManagerBasedRLEnv):
+        super().__init__(cfg, env)
+
+        start_step = cfg.params["start_step"]
+        end_step = cfg.params["end_step"]
+        if start_step < 0:
+            raise ValueError("start_step must be non-negative.")
+        if end_step <= start_step:
+            raise ValueError("end_step must be greater than start_step.")
+
+        self._term_cfg = env.reward_manager.get_term_cfg(cfg.params["term_name"])
+
+    def __call__(
+        self,
+        env: ManagerBasedRLEnv,
+        env_ids: Sequence[int],
+        term_name: str,
+        start_weight: float,
+        final_multiplier: float,
+        start_step: int,
+        end_step: int,
+    ) -> float:
+        del env_ids
+
+        weight = _proportional_value(
+            start_weight,
+            final_multiplier,
+            env.common_step_counter,
+            start_step,
+            end_step,
+        )
+        if self._term_cfg.weight != weight:
+            self._term_cfg.weight = weight
+            env.reward_manager.set_term_cfg(term_name, self._term_cfg)
+
+        return weight
