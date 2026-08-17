@@ -73,6 +73,9 @@ BASE_BODY_NAME = "base_link"
 ANKLE_JOINT_NAMES = [".*_ankle_pitch_joint", ".*_ankle_roll_joint"]
 KNEE_JOINT_NAMES = ["r_knee_pitch_joint", "l_knee_pitch_joint"]
 KNEE_FLEXION_DIRECTION_SIGNS = (1.0, -1.0)
+LEG_ROLL_JOINT_NAMES = ["r_leg_roll_joint", "l_leg_roll_joint"]
+# Both axes point along +X: outward is negative for physical right and positive for left.
+LEG_ROLL_OUTWARD_DIRECTION_SIGNS = (-1.0, 1.0)
 
 MIN_BASE_HEIGHT = 0.20
 MAX_BASE_TILT = math.radians(65.0)
@@ -87,6 +90,10 @@ TIME_OFF_GROUND_BASE_VALUE = 1
 TIME_OFF_GROUND_GROWTH_RATE = 1
 SWING_KNEE_FLEXION_SATURATION = math.radians(15.0)
 SWING_KNEE_FLEXION_REWARD_WEIGHT = 1.0
+LEG_ROLL_VELOCITY_THRESHOLD = math.radians(5.0)
+LEG_ROLL_VELOCITY_PENALTY_WEIGHT = -1.0
+LEG_OUTWARD_ROLL_THRESHOLD = math.radians(5.0)
+LEG_OUTWARD_ROLL_PENALTY_WEIGHT = -1.0
 EL05_RATED_TORQUE = 2.5
 ONE_FOOT_COMMAND_NAME = "lift_one_foot_in_the_air"
 
@@ -461,6 +468,27 @@ class RewardsCfg:
         weight=-1.0,
         params={
             "asset_cfg": SceneEntityCfg("robot", joint_names=ANKLE_JOINT_NAMES)
+        },
+    )
+    leg_roll_velocity_excess = RewTerm(
+        func=mdp.leg_roll_velocity_excess,
+        weight=LEG_ROLL_VELOCITY_PENALTY_WEIGHT,
+        params={
+            "velocity_threshold": LEG_ROLL_VELOCITY_THRESHOLD,
+            "asset_cfg": SceneEntityCfg(
+                "robot", joint_names=LEG_ROLL_JOINT_NAMES, preserve_order=True
+            ),
+        },
+    )
+    leg_outward_roll_excess = RewTerm(
+        func=mdp.leg_outward_roll_excess,
+        weight=LEG_OUTWARD_ROLL_PENALTY_WEIGHT,
+        params={
+            "angle_threshold": LEG_OUTWARD_ROLL_THRESHOLD,
+            "outward_direction_signs": LEG_ROLL_OUTWARD_DIRECTION_SIGNS,
+            "asset_cfg": SceneEntityCfg(
+                "robot", joint_names=LEG_ROLL_JOINT_NAMES, preserve_order=True
+            ),
         },
     )
     one_foot_command = RewTerm(
