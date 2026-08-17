@@ -1,4 +1,4 @@
-"""Binary lift command and per-episode support-foot selection."""
+"""Scheduled binary lift command and per-episode support-foot selection."""
 
 from __future__ import annotations
 
@@ -12,7 +12,7 @@ from isaaclab.utils import configclass
 
 
 class OneFootStandingCommand(CommandTerm):
-    """Sample the lift command while keeping one support side per episode.
+    """Run a stand, lift, then lower sequence with one support side per episode.
 
     Command column 0 is the policy-visible binary lift command. Column 1 is a
     hidden physical-side selector (0 = right support, 1 = left support) used by
@@ -22,12 +22,20 @@ class OneFootStandingCommand(CommandTerm):
     cfg: "OneFootStandingCommandCfg"
 
     def __init__(self, cfg: "OneFootStandingCommandCfg", env: ManagerBasedRLEnv):
-        if not 0.0 <= cfg.lift_probability <= 1.0:
-            raise ValueError("lift_probability must be in [0, 1].")
+        for name, time_range in (
+            ("initial_stand_time_range_s", cfg.initial_stand_time_range_s),
+            ("lift_time_range_s", cfg.lift_time_range_s),
+        ):
+            if time_range[0] <= 0.0 or time_range[1] < time_range[0]:
+                raise ValueError(f"{name} must be a positive, ordered range.")
         if not 0.0 <= cfg.support_left_probability <= 1.0:
             raise ValueError("support_left_probability must be in [0, 1].")
         super().__init__(cfg, env)
         self._command = torch.zeros(self.num_envs, 2, device=self.device)
+        self._initial_stand_duration_s = torch.zeros(
+            self.num_envs, device=self.device
+        )
+        self._lift_duration_s = torch.zeros(self.num_envs, device=self.device)
 
     @property
     def command(self) -> torch.Tensor:
@@ -36,20 +44,32 @@ class OneFootStandingCommand(CommandTerm):
     def reset(self, env_ids: Sequence[int] | None = None) -> dict[str, float]:
         if env_ids is None or isinstance(env_ids, slice):
             env_ids = torch.arange(self.num_envs, device=self.device)
+        else:
+            env_ids = torch.as_tensor(env_ids, device=self.device, dtype=torch.long)
+        num_resets = len(env_ids)
+        self._initial_stand_duration_s[env_ids] = torch.empty(
+            num_resets, device=self.device
+        ).uniform_(*self.cfg.initial_stand_time_range_s)
+        self._lift_duration_s[env_ids] = torch.empty(
+            num_resets, device=self.device
+        ).uniform_(*self.cfg.lift_time_range_s)
         self._command[env_ids, 1] = (
             torch.rand_like(self._command[env_ids, 1])
             < self.cfg.support_left_probability
         ).float()
+        self._command[env_ids, 0] = 0.0
         return super().reset(env_ids)
 
     def _resample_command(self, env_ids: Sequence[int]) -> None:
-        self._command[env_ids, 0] = (
-            torch.rand_like(self._command[env_ids, 0])
-            < self.cfg.lift_probability
-        ).float()
+        self._command[env_ids, 0] = 0.0
 
     def _update_command(self) -> None:
-        pass
+        elapsed_time_s = self._env.episode_length_buf * self._env.step_dt
+        lift_start_s = self._initial_stand_duration_s
+        lift_end_s = lift_start_s + self._lift_duration_s
+        self._command[:, 0] = (
+            (elapsed_time_s >= lift_start_s) & (elapsed_time_s < lift_end_s)
+        ).float()
 
     def _update_metrics(self) -> None:
         pass
@@ -67,5 +87,6 @@ class OneFootStandingCommandCfg(CommandTermCfg):
 
     class_type: type = OneFootStandingCommand
     asset_name: str = "robot"
-    lift_probability: float = 0.5
+    initial_stand_time_range_s: tuple[float, float] = (1.0, 2.0)
+    lift_time_range_s: tuple[float, float] = (3.0, 5.0)
     support_left_probability: float = 0.5
