@@ -20,11 +20,35 @@ from isaaclab.managers import SceneEntityCfg
 from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sensors import ContactSensorCfg, ImuCfg
+import isaaclab.terrains as terrain_gen
+from isaaclab.terrains import TerrainGeneratorCfg, TerrainImporterCfg
 from isaaclab.utils import configclass
 from isaaclab.utils.noise import AdditiveUniformNoiseCfg as Unoise
 
 from . import mdp
 from .humanoid_robot import HUMANOID_ROBOT_CFG
+
+
+SMALL_RANDOM_ROUGH_TERRAIN_CFG = TerrainGeneratorCfg(
+    size=(8.0, 8.0),
+    border_width=10.0,
+    num_rows=10,
+    num_cols=20,
+    horizontal_scale=0.05,
+    vertical_scale=0.001,
+    slope_threshold=0.75,
+    curriculum=False,
+    use_cache=False,
+    sub_terrains={
+        "small_random_rough": terrain_gen.HfRandomUniformTerrainCfg(
+            proportion=1.0,
+            noise_range=(-0.005, 0.005),
+            noise_step=0.001,
+            downsampled_scale=0.10,
+            border_width=0.25,
+        ),
+    },
+)
 
 
 LEG_JOINT_NAMES = [
@@ -114,20 +138,21 @@ def _ordered_feet_sensor_cfg() -> SceneEntityCfg:
 
 @configclass
 class HumanoidRobotOneFootStandingSceneCfg(InteractiveSceneCfg):
-    """Flat-ground humanoid scene with IMU and foot-contact sensing."""
+    """Randomly rough humanoid scene with IMU and foot-contact sensing."""
 
-    ground = AssetBaseCfg(
+    terrain = TerrainImporterCfg(
         prim_path="/World/ground",
-        spawn=sim_utils.GroundPlaneCfg(
-            size=(100.0, 100.0),
-            physics_material=sim_utils.RigidBodyMaterialCfg(
-                friction_combine_mode="average",
-                restitution_combine_mode="average",
-                static_friction=1.0,
-                dynamic_friction=0.8,
-                restitution=0.0,
-            ),
+        terrain_type="generator",
+        terrain_generator=SMALL_RANDOM_ROUGH_TERRAIN_CFG,
+        collision_group=-1,
+        physics_material=sim_utils.RigidBodyMaterialCfg(
+            friction_combine_mode="average",
+            restitution_combine_mode="average",
+            static_friction=1.0,
+            dynamic_friction=0.8,
+            restitution=0.0,
         ),
+        debug_vis=False,
     )
 
     robot: ArticulationCfg = HUMANOID_ROBOT_CFG.replace(
@@ -344,11 +369,10 @@ class RewardsCfg:
         weight=3,
         params={"std": 0.25, "asset_cfg": SceneEntityCfg("robot")},
     )
-    support_foot_no_slide = RewTerm(
-        func=mdp.support_foot_no_slide,
+    contacting_feet_no_slide = RewTerm(
+        func=mdp.contacting_feet_no_slide,
         weight=1.0,
         params={
-            "command_name": ONE_FOOT_COMMAND_NAME,
             "std": 0.05,
             "asset_cfg": _ordered_feet_cfg(),
             "sensor_cfg": _ordered_feet_sensor_cfg(),
