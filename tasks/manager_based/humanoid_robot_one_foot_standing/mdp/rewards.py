@@ -16,6 +16,9 @@ if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedRLEnv
 
 
+_TIME_OFF_GROUND_STATE_ATTR = "_one_foot_time_off_ground_state"
+
+
 def base_linear_velocity_zero(
     env: ManagerBasedRLEnv, std: float, asset_cfg: SceneEntityCfg
 ) -> torch.Tensor:
@@ -160,8 +163,45 @@ def ground_contact_flatness_with_landing_bonus(
     return contact_score + landing_bonus * landing_score
 
 
+def time_off_ground_value(
+    env: ManagerBasedRLEnv,
+    lift_command: torch.Tensor,
+    swing_contact: torch.Tensor,
+    base_value: float,
+    growth_rate: float,
+) -> torch.Tensor:
+    """Return a shared multiplier that grows while the commanded foot stays airborne."""
+
+    if base_value < 0.0:
+        raise ValueError("base_value must be non-negative.")
+    if growth_rate < 0.0:
+        raise ValueError("growth_rate must be non-negative.")
+
+    state = getattr(env, _TIME_OFF_GROUND_STATE_ATTR, None)
+    if state is None or state["air_time"].shape[0] != env.num_envs:
+        state = {
+            "air_time": torch.zeros(env.num_envs, device=env.device),
+            "last_step": -1,
+        }
+        setattr(env, _TIME_OFF_GROUND_STATE_ATTR, state)
+
+    current_step = int(env.common_step_counter)
+    if state["last_step"] != current_step:
+        airborne_during_lift = lift_command & ~swing_contact
+        state["air_time"] = torch.where(
+            airborne_during_lift,
+            state["air_time"] + env.step_dt,
+            torch.zeros_like(state["air_time"]),
+        )
+        state["last_step"] = current_step
+
+    return base_value + growth_rate * state["air_time"]
+
+
 def swing_foot_airborne(
     env: ManagerBasedRLEnv,
+    time_off_ground_base_value: float,
+    time_off_ground_growth_rate: float,
     command_name: str,
     sensor_cfg: SceneEntityCfg,
 ) -> torch.Tensor:
@@ -177,7 +217,14 @@ def swing_foot_airborne(
     in_contact = sensor.data.current_contact_time[:, sensor_cfg.body_ids] > 0.0
     support_contact = in_contact[rows, support_index]
     swing_contact = in_contact[rows, swing_index]
-    lift_score = (support_contact & ~swing_contact).float()
+    air_time_value = time_off_ground_value(
+        env,
+        lift_command,
+        swing_contact,
+        time_off_ground_base_value,
+        time_off_ground_growth_rate,
+    )
+    lift_score = (support_contact & ~swing_contact).float() * air_time_value
     stand_penalty = -torch.any(~in_contact, dim=1).float()
     return torch.where(lift_command, lift_score, stand_penalty)
 
@@ -200,6 +247,8 @@ class one_foot_command_reward(ManagerTermBase):
         max_foot_lift_height: float,
         command_zero_weight: float,
         command_one_weight: float,
+        time_off_ground_base_value: float,
+        time_off_ground_growth_rate: float,
         sole_vertices,
         command_name: str,
         asset_cfg: SceneEntityCfg,
@@ -247,11 +296,18 @@ class one_foot_command_reward(ManagerTermBase):
             swing_minimum_height / max_foot_lift_height, min=0.0, max=1.0
         )
         lift_score *= (support_contact & ~swing_contact).float()
+        air_time_value = time_off_ground_value(
+            env,
+            lift_command,
+            swing_contact,
+            time_off_ground_base_value,
+            time_off_ground_growth_rate,
+        )
 
         lower_score = 1.0 - swing_maximum_height / max_foot_lift_height
         lower_score *= support_contact.float()
         return torch.where(
             lift_command,
-            command_one_weight * lift_score,
+            command_one_weight * lift_score * air_time_value,
             command_zero_weight * lower_score,
         )

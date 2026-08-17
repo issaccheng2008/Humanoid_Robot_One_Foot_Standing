@@ -81,6 +81,8 @@ ROLLOUT_STEPS_PER_ITERATION = 24
 ONE_FOOT_COMMAND_ZERO_REWARD_WEIGHT = 1.0
 ONE_FOOT_COMMAND_ONE_REWARD_WEIGHT = 5.0
 SWING_FOOT_AIRBORNE_REWARD_WEIGHT = 3.0
+TIME_OFF_GROUND_BASE_VALUE = 0.2
+TIME_OFF_GROUND_GROWTH_RATE = 0.5
 EL05_RATED_TORQUE = 1.5
 ONE_FOOT_COMMAND_NAME = "lift_one_foot_in_the_air"
 
@@ -464,6 +466,8 @@ class RewardsCfg:
             "max_foot_lift_height": INITIAL_FOOT_LIFT_HEIGHT,
             "command_zero_weight": ONE_FOOT_COMMAND_ZERO_REWARD_WEIGHT,
             "command_one_weight": ONE_FOOT_COMMAND_ONE_REWARD_WEIGHT,
+            "time_off_ground_base_value": TIME_OFF_GROUND_BASE_VALUE,
+            "time_off_ground_growth_rate": TIME_OFF_GROUND_GROWTH_RATE,
             "sole_vertices": FOOT_SOLE_VERTICES,
             "command_name": ONE_FOOT_COMMAND_NAME,
             "asset_cfg": _ordered_feet_cfg(),
@@ -474,6 +478,8 @@ class RewardsCfg:
         func=mdp.swing_foot_airborne,
         weight=SWING_FOOT_AIRBORNE_REWARD_WEIGHT,
         params={
+            "time_off_ground_base_value": TIME_OFF_GROUND_BASE_VALUE,
+            "time_off_ground_growth_rate": TIME_OFF_GROUND_GROWTH_RATE,
             "command_name": ONE_FOOT_COMMAND_NAME,
             "sensor_cfg": _ordered_feet_sensor_cfg(),
         },
