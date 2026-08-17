@@ -81,6 +81,7 @@ ROLLOUT_STEPS_PER_ITERATION = 24
 ONE_FOOT_COMMAND_ZERO_REWARD_WEIGHT = 1.0
 ONE_FOOT_COMMAND_ONE_REWARD_WEIGHT = 5.0
 SWING_FOOT_AIRBORNE_REWARD_WEIGHT = 3.0
+SWING_FOOT_CONTACT_PENALTY_WEIGHT = -10.0
 EL05_RATED_TORQUE = 1.5
 ONE_FOOT_COMMAND_NAME = "lift_one_foot_in_the_air"
 
@@ -473,6 +474,14 @@ class RewardsCfg:
     swing_foot_airborne = RewTerm(
         func=mdp.swing_foot_airborne,
         weight=SWING_FOOT_AIRBORNE_REWARD_WEIGHT,
+        params={
+            "command_name": ONE_FOOT_COMMAND_NAME,
+            "sensor_cfg": _ordered_feet_sensor_cfg(),
+        },
+    )
+    swing_foot_contact_penalty = RewTerm(
+        func=mdp.swing_foot_contact_penalty,
+        weight=SWING_FOOT_CONTACT_PENALTY_WEIGHT,
         params={
             "command_name": ONE_FOOT_COMMAND_NAME,
             "sensor_cfg": _ordered_feet_sensor_cfg(),

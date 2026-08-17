@@ -182,6 +182,25 @@ def swing_foot_airborne(
     return torch.where(lift_command, lift_score, stand_penalty)
 
 
+def swing_foot_contact_penalty(
+    env: ManagerBasedRLEnv,
+    command_name: str,
+    sensor_cfg: SceneEntityCfg,
+) -> torch.Tensor:
+    """Flag swing-foot contact while the lift command is active."""
+
+    command = env.command_manager.get_command(command_name)
+    lift_command = command[:, 0] > 0.5
+    support_index = command[:, 1].long()
+    swing_index = 1 - support_index
+    rows = torch.arange(env.num_envs, device=env.device)
+
+    sensor: ContactSensor = env.scene.sensors[sensor_cfg.name]
+    in_contact = sensor.data.current_contact_time[:, sensor_cfg.body_ids] > 0.0
+    swing_contact = in_contact[rows, swing_index]
+    return (lift_command & swing_contact).float()
+
+
 class one_foot_command_reward(ManagerTermBase):
     """Reward the selected support/swing feet according to the binary command."""
 
