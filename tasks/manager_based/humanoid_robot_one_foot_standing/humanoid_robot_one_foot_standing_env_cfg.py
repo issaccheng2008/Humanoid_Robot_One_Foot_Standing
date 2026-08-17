@@ -167,8 +167,9 @@ class CommandsCfg:
 
     lift_one_foot_in_the_air = mdp.OneFootStandingCommandCfg(
         asset_name="robot",
-        resampling_time_range=(1.0, 3.0),
-        lift_probability=0.5,
+        resampling_time_range=(8.0, 8.0),
+        initial_stand_time_range_s=(1.0, 2.0),
+        lift_time_range_s=(3.0, 5.0),
         support_left_probability=0.5,
         debug_vis=False,
     )
@@ -475,7 +476,7 @@ class HumanoidRobotOneFootStandingEnvCfg(ManagerBasedRLEnvCfg):
 
     def __post_init__(self) -> None:
         self.decimation = 4
-        self.episode_length_s = 5.0
+        self.episode_length_s = 8.0
         self.sim.dt = 0.005
         self.sim.render_interval = self.decimation
         self.scene.contact_forces.update_period = self.sim.dt
