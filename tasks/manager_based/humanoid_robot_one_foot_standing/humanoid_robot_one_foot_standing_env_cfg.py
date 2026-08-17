@@ -83,6 +83,9 @@ INITIAL_FOOT_LIFT_HEIGHT = 0.005
 MAX_FOOT_LIFT_HEIGHT = 0.05
 FOOT_LIFT_HEIGHT_CURRICULUM_ITERATIONS = 2000
 ROLLOUT_STEPS_PER_ITERATION = 24
+FOOT_REWARD_DECAY_START_ITERATION = 500
+FOOT_REWARD_DECAY_END_ITERATION = 2000
+FOOT_REWARD_FINAL_MULTIPLIER = 0.5
 ONE_FOOT_COMMAND_ZERO_REWARD_WEIGHT = 1.0
 ONE_FOOT_COMMAND_ONE_REWARD_WEIGHT = 5.0
 SWING_FOOT_AIRBORNE_REWARD_WEIGHT = 3.0
@@ -532,7 +535,7 @@ class RewardsCfg:
 
 @configclass
 class CurriculumCfg:
-    """Increase the commanded swing-foot lift target over 2000 PPO iterations."""
+    """Curricula for swing-foot height and proportional reward-weight decay."""
 
     foot_lift_height = CurrTerm(
         func=mdp.modify_reward_param_linearly,
@@ -545,6 +548,35 @@ class CurriculumCfg:
             "end_step": (
                 FOOT_LIFT_HEIGHT_CURRICULUM_ITERATIONS
                 * ROLLOUT_STEPS_PER_ITERATION
+            ),
+        },
+    )
+    one_foot_command_one_weight = CurrTerm(
+        func=mdp.modify_reward_param_proportionally,
+        params={
+            "term_name": "one_foot_command",
+            "param_name": "command_one_weight",
+            "start_value": ONE_FOOT_COMMAND_ONE_REWARD_WEIGHT,
+            "final_multiplier": FOOT_REWARD_FINAL_MULTIPLIER,
+            "start_step": (
+                FOOT_REWARD_DECAY_START_ITERATION * ROLLOUT_STEPS_PER_ITERATION
+            ),
+            "end_step": (
+                FOOT_REWARD_DECAY_END_ITERATION * ROLLOUT_STEPS_PER_ITERATION
+            ),
+        },
+    )
+    swing_foot_airborne_weight = CurrTerm(
+        func=mdp.modify_reward_weight_proportionally,
+        params={
+            "term_name": "swing_foot_airborne",
+            "start_weight": SWING_FOOT_AIRBORNE_REWARD_WEIGHT,
+            "final_multiplier": FOOT_REWARD_FINAL_MULTIPLIER,
+            "start_step": (
+                FOOT_REWARD_DECAY_START_ITERATION * ROLLOUT_STEPS_PER_ITERATION
+            ),
+            "end_step": (
+                FOOT_REWARD_DECAY_END_ITERATION * ROLLOUT_STEPS_PER_ITERATION
             ),
         },
     )
