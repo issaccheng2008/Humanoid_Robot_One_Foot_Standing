@@ -160,6 +160,26 @@ def ground_contact_flatness_with_landing_bonus(
     return contact_score + landing_bonus * landing_score
 
 
+def swing_foot_airborne(
+    env: ManagerBasedRLEnv,
+    command_name: str,
+    sensor_cfg: SceneEntityCfg,
+) -> torch.Tensor:
+    """Reward a grounded support foot with an airborne swing foot during lifting."""
+
+    command = env.command_manager.get_command(command_name)
+    lift_command = command[:, 0] > 0.5
+    support_index = command[:, 1].long()
+    swing_index = 1 - support_index
+    rows = torch.arange(env.num_envs, device=env.device)
+
+    sensor: ContactSensor = env.scene.sensors[sensor_cfg.name]
+    in_contact = sensor.data.current_contact_time[:, sensor_cfg.body_ids] > 0.0
+    support_contact = in_contact[rows, support_index]
+    swing_contact = in_contact[rows, swing_index]
+    return (lift_command & support_contact & ~swing_contact).float()
+
+
 class one_foot_command_reward(ManagerTermBase):
     """Reward the selected support/swing feet according to the binary command."""
 
@@ -176,6 +196,8 @@ class one_foot_command_reward(ManagerTermBase):
         self,
         env: ManagerBasedRLEnv,
         max_foot_lift_height: float,
+        command_zero_weight: float,
+        command_one_weight: float,
         sole_vertices,
         command_name: str,
         asset_cfg: SceneEntityCfg,
@@ -221,4 +243,8 @@ class one_foot_command_reward(ManagerTermBase):
 
         lower_score = 1.0 - swing_height / max_foot_lift_height
         lower_score *= support_contact.float()
-        return torch.where(lift_command, lift_score, lower_score)
+        return torch.where(
+            lift_command,
+            command_one_weight * lift_score,
+            command_zero_weight * lower_score,
+        )

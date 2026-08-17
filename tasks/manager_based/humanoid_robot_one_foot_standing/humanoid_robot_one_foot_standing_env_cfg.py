@@ -12,6 +12,7 @@ import math
 import isaaclab.sim as sim_utils
 from isaaclab.assets import ArticulationCfg, AssetBaseCfg
 from isaaclab.envs import ManagerBasedRLEnvCfg
+from isaaclab.managers import CurriculumTermCfg as CurrTerm
 from isaaclab.managers import EventTermCfg as EventTerm
 from isaaclab.managers import ObservationGroupCfg as ObsGroup
 from isaaclab.managers import ObservationTermCfg as ObsTerm
@@ -73,7 +74,13 @@ ANKLE_JOINT_NAMES = [".*_ankle_pitch_joint", ".*_ankle_roll_joint"]
 
 MIN_BASE_HEIGHT = 0.20
 MAX_BASE_TILT = math.radians(65.0)
+INITIAL_FOOT_LIFT_HEIGHT = 0.01
 MAX_FOOT_LIFT_HEIGHT = 0.05
+FOOT_LIFT_HEIGHT_CURRICULUM_ITERATIONS = 2000
+ROLLOUT_STEPS_PER_ITERATION = 24
+ONE_FOOT_COMMAND_ZERO_REWARD_WEIGHT = 1.0
+ONE_FOOT_COMMAND_ONE_REWARD_WEIGHT = 3.0
+SWING_FOOT_AIRBORNE_REWARD_WEIGHT = 1.0
 EL05_RATED_TORQUE = 1.5
 ONE_FOOT_COMMAND_NAME = "lift_one_foot_in_the_air"
 
@@ -452,13 +459,43 @@ class RewardsCfg:
     )
     one_foot_command = RewTerm(
         func=mdp.one_foot_command_reward,
-        weight=3.0,
+        weight=1.0,
         params={
-            "max_foot_lift_height": MAX_FOOT_LIFT_HEIGHT,
+            "max_foot_lift_height": INITIAL_FOOT_LIFT_HEIGHT,
+            "command_zero_weight": ONE_FOOT_COMMAND_ZERO_REWARD_WEIGHT,
+            "command_one_weight": ONE_FOOT_COMMAND_ONE_REWARD_WEIGHT,
             "sole_vertices": FOOT_SOLE_VERTICES,
             "command_name": ONE_FOOT_COMMAND_NAME,
             "asset_cfg": _ordered_feet_cfg(),
             "sensor_cfg": _ordered_feet_sensor_cfg(),
+        },
+    )
+    swing_foot_airborne = RewTerm(
+        func=mdp.swing_foot_airborne,
+        weight=SWING_FOOT_AIRBORNE_REWARD_WEIGHT,
+        params={
+            "command_name": ONE_FOOT_COMMAND_NAME,
+            "sensor_cfg": _ordered_feet_sensor_cfg(),
+        },
+    )
+
+
+@configclass
+class CurriculumCfg:
+    """Increase the commanded swing-foot lift target over 2000 PPO iterations."""
+
+    foot_lift_height = CurrTerm(
+        func=mdp.modify_reward_param_linearly,
+        params={
+            "term_name": "one_foot_command",
+            "param_name": "max_foot_lift_height",
+            "start_value": INITIAL_FOOT_LIFT_HEIGHT,
+            "end_value": MAX_FOOT_LIFT_HEIGHT,
+            "start_step": 0,
+            "end_step": (
+                FOOT_LIFT_HEIGHT_CURRICULUM_ITERATIONS
+                * ROLLOUT_STEPS_PER_ITERATION
+            ),
         },
     )
 
@@ -495,6 +532,7 @@ class HumanoidRobotOneFootStandingEnvCfg(ManagerBasedRLEnvCfg):
     actions: ActionsCfg = ActionsCfg()
     commands: CommandsCfg = CommandsCfg()
     rewards: RewardsCfg = RewardsCfg()
+    curriculum: CurriculumCfg = CurriculumCfg()
     terminations: TerminationsCfg = TerminationsCfg()
     events: EventCfg = EventCfg()
 
