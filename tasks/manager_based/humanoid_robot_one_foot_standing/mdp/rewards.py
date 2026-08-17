@@ -229,6 +229,40 @@ def swing_foot_airborne(
     return torch.where(lift_command, lift_score, stand_penalty)
 
 
+def swing_knee_flexion(
+    env: ManagerBasedRLEnv,
+    saturation_angle: float,
+    correct_direction_signs: tuple[float, float],
+    command_name: str,
+    asset_cfg: SceneEntityCfg,
+) -> torch.Tensor:
+    """Reward additional human-like flexion of the selected swing knee."""
+
+    if saturation_angle <= 0.0:
+        raise ValueError("saturation_angle must be positive.")
+    if len(correct_direction_signs) != 2:
+        raise ValueError("correct_direction_signs must contain right and left signs.")
+
+    robot: Articulation = env.scene[asset_cfg.name]
+    knee_position = robot.data.joint_pos[:, asset_cfg.joint_ids]
+    default_knee_position = robot.data.default_joint_pos[:, asset_cfg.joint_ids]
+    if knee_position.shape[1] != 2:
+        raise ValueError("asset_cfg must resolve exactly two ordered knee joints.")
+
+    direction_signs = knee_position.new_tensor(correct_direction_signs)
+    flexion_from_default = (knee_position - default_knee_position) * direction_signs
+
+    command = env.command_manager.get_command(command_name)
+    lift_command = command[:, 0] > 0.5
+    support_index = command[:, 1].long()
+    swing_index = 1 - support_index
+    rows = torch.arange(env.num_envs, device=env.device)
+    swing_flexion = flexion_from_default[rows, swing_index]
+
+    score = torch.clamp(swing_flexion / saturation_angle, max=1.0)
+    return score * lift_command.float()
+
+
 class one_foot_command_reward(ManagerTermBase):
     """Reward the selected support/swing feet according to the binary command."""
 

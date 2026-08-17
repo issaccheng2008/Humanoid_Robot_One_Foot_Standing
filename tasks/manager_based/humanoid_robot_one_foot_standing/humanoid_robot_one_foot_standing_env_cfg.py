@@ -71,6 +71,8 @@ LEG_JOINT_NAMES = [
 FOOT_BODY_NAMES = ["r_ankle_roll_link", "l_ankle_roll_link"]
 BASE_BODY_NAME = "base_link"
 ANKLE_JOINT_NAMES = [".*_ankle_pitch_joint", ".*_ankle_roll_joint"]
+KNEE_JOINT_NAMES = ["r_knee_pitch_joint", "l_knee_pitch_joint"]
+KNEE_FLEXION_DIRECTION_SIGNS = (1.0, -1.0)
 
 MIN_BASE_HEIGHT = 0.20
 MAX_BASE_TILT = math.radians(65.0)
@@ -83,6 +85,8 @@ ONE_FOOT_COMMAND_ONE_REWARD_WEIGHT = 5.0
 SWING_FOOT_AIRBORNE_REWARD_WEIGHT = 3.0
 TIME_OFF_GROUND_BASE_VALUE = 0.2
 TIME_OFF_GROUND_GROWTH_RATE = 0.5
+SWING_KNEE_FLEXION_SATURATION = math.radians(15.0)
+SWING_KNEE_FLEXION_REWARD_WEIGHT = 1.0
 EL05_RATED_TORQUE = 1.5
 ONE_FOOT_COMMAND_NAME = "lift_one_foot_in_the_air"
 
@@ -482,6 +486,18 @@ class RewardsCfg:
             "time_off_ground_growth_rate": TIME_OFF_GROUND_GROWTH_RATE,
             "command_name": ONE_FOOT_COMMAND_NAME,
             "sensor_cfg": _ordered_feet_sensor_cfg(),
+        },
+    )
+    swing_knee_flexion = RewTerm(
+        func=mdp.swing_knee_flexion,
+        weight=SWING_KNEE_FLEXION_REWARD_WEIGHT,
+        params={
+            "saturation_angle": SWING_KNEE_FLEXION_SATURATION,
+            "correct_direction_signs": KNEE_FLEXION_DIRECTION_SIGNS,
+            "command_name": ONE_FOOT_COMMAND_NAME,
+            "asset_cfg": SceneEntityCfg(
+                "robot", joint_names=KNEE_JOINT_NAMES, preserve_order=True
+            ),
         },
     )
 
