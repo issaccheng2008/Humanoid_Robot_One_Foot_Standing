@@ -73,6 +73,50 @@ def joint_torque_over_nominal(
     return torch.sum(torch.clamp(applied_torque - nominal_torque, min=0.0), dim=1)
 
 
+def leg_roll_velocity_excess(
+    env: ManagerBasedRLEnv,
+    velocity_threshold: float,
+    asset_cfg: SceneEntityCfg,
+) -> torch.Tensor:
+    """Return normalized leg-roll speed above a dead-zone threshold."""
+
+    if velocity_threshold <= 0.0:
+        raise ValueError("velocity_threshold must be positive.")
+    robot: Articulation = env.scene[asset_cfg.name]
+    joint_velocity = robot.data.joint_vel[:, asset_cfg.joint_ids]
+    excess_velocity = torch.clamp(
+        torch.abs(joint_velocity) - velocity_threshold, min=0.0
+    )
+    return torch.sum(excess_velocity / velocity_threshold, dim=1)
+
+
+def leg_outward_roll_excess(
+    env: ManagerBasedRLEnv,
+    angle_threshold: float,
+    outward_direction_signs: tuple[float, float],
+    asset_cfg: SceneEntityCfg,
+) -> torch.Tensor:
+    """Return normalized outward leg-roll deviation beyond a dead zone."""
+
+    if angle_threshold <= 0.0:
+        raise ValueError("angle_threshold must be positive.")
+    if len(outward_direction_signs) != 2:
+        raise ValueError("outward_direction_signs must contain right and left signs.")
+
+    robot: Articulation = env.scene[asset_cfg.name]
+    joint_position = robot.data.joint_pos[:, asset_cfg.joint_ids]
+    default_joint_position = robot.data.default_joint_pos[:, asset_cfg.joint_ids]
+    if joint_position.shape[1] != 2:
+        raise ValueError("asset_cfg must resolve exactly two ordered leg-roll joints.")
+
+    direction_signs = joint_position.new_tensor(outward_direction_signs)
+    outward_deviation = (
+        joint_position - default_joint_position
+    ) * direction_signs
+    excess_angle = torch.clamp(outward_deviation - angle_threshold, min=0.0)
+    return torch.sum(excess_angle / angle_threshold, dim=1)
+
+
 def is_any_terminated_term(
     env: ManagerBasedRLEnv, term_keys: str | list[str]
 ) -> torch.Tensor:
