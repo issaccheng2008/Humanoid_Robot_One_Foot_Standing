@@ -340,7 +340,7 @@ class RewardsCfg:
     )
     base_ang_vel_zero = RewTerm(
         func=mdp.base_angular_velocity_zero,
-        weight=1.5,
+        weight=3,
         params={"std": 0.25, "asset_cfg": SceneEntityCfg("robot")},
     )
     support_foot_no_slide = RewTerm(
@@ -355,7 +355,7 @@ class RewardsCfg:
     )
     ground_contact_flatness = RewTerm(
         func=mdp.ground_contact_flatness_with_landing_bonus,
-        weight=1.0,
+        weight=0.5,
         params={
             "flat_tolerance": math.radians(5.0),
             "penalty_start_angle": math.radians(10.0),
