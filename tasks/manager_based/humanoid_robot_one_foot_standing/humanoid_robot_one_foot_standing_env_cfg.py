@@ -50,7 +50,7 @@ ANKLE_JOINT_NAMES = [".*_ankle_pitch_joint", ".*_ankle_roll_joint"]
 MIN_BASE_HEIGHT = 0.20
 MAX_BASE_TILT = math.radians(65.0)
 MAX_FOOT_LIFT_HEIGHT = 0.05
-EL05_RATED_TORQUE = 4.0
+EL05_RATED_TORQUE = 1.5
 ONE_FOOT_COMMAND_NAME = "lift_one_foot_in_the_air"
 
 # Convex perimeters of the lowest physical sole surfaces, ordered right/left.
