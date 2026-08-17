@@ -373,7 +373,7 @@ class RewardsCfg:
     )
     base_ang_vel_zero = RewTerm(
         func=mdp.base_angular_velocity_zero,
-        weight=3,
+        weight=2,
         params={"std": 0.25, "asset_cfg": SceneEntityCfg("robot")},
     )
     contacting_feet_no_slide = RewTerm(
