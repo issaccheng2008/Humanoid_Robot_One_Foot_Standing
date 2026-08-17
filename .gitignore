@@ -1,2 +1,3 @@
-*.pyc
+# Python cache
 __pycache__/
+*.py[cod]
