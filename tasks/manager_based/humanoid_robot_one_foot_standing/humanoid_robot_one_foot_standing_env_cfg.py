@@ -382,9 +382,9 @@ class RewardsCfg:
         func=mdp.ground_contact_flatness_with_landing_bonus,
         weight=0.5,
         params={
-            "flat_tolerance": math.radians(5.0),
-            "penalty_start_angle": math.radians(10.0),
-            "landing_bonus": 1.0,
+            "flat_tolerance": math.radians(3.0),
+            "penalty_start_angle": math.radians(5.0),
+            "landing_bonus": 0.0,
             "asset_cfg": _ordered_feet_cfg(),
             "sensor_cfg": _ordered_feet_sensor_cfg(),
         },
@@ -452,7 +452,7 @@ class RewardsCfg:
     )
     one_foot_command = RewTerm(
         func=mdp.one_foot_command_reward,
-        weight=3.0,
+        weight=5.0,
         params={
             "max_foot_lift_height": MAX_FOOT_LIFT_HEIGHT,
             "sole_vertices": FOOT_SOLE_VERTICES,
