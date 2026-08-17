@@ -459,7 +459,7 @@ class RewardsCfg:
     )
     one_foot_command = RewTerm(
         func=mdp.one_foot_command_reward,
-        weight=5.0,
+        weight=3.0,
         params={
             "max_foot_lift_height": INITIAL_FOOT_LIFT_HEIGHT,
             "command_zero_weight": ONE_FOOT_COMMAND_ZERO_REWARD_WEIGHT,
