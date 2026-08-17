@@ -81,29 +81,27 @@ def is_any_terminated_term(
     return terminated.float()
 
 
-def support_foot_no_slide(
+def contacting_feet_no_slide(
     env: ManagerBasedRLEnv,
-    command_name: str,
     std: float,
     asset_cfg: SceneEntityCfg,
     sensor_cfg: SceneEntityCfg,
 ) -> torch.Tensor:
-    """Reward the selected support foot for remaining still while in contact."""
+    """Reward every contacting foot for remaining still on the ground."""
 
     if std <= 0.0:
         raise ValueError("std must be positive.")
     robot: Articulation = env.scene[asset_cfg.name]
     sensor: ContactSensor = env.scene.sensors[sensor_cfg.name]
-    support_index = env.command_manager.get_command(command_name)[:, 1].long()
-    rows = torch.arange(env.num_envs, device=env.device)
 
     foot_velocity_xy = robot.data.body_lin_vel_w[:, asset_cfg.body_ids, :2]
-    selected_velocity = foot_velocity_xy[rows, support_index]
     in_contact = sensor.data.current_contact_time[:, sensor_cfg.body_ids] > 0.0
-    support_contact = in_contact[rows, support_index]
-    return (
-        torch.exp(-torch.sum(torch.square(selected_velocity), dim=1) / std**2)
-        * support_contact.float()
+    no_slide_score = torch.exp(
+        -torch.sum(torch.square(foot_velocity_xy), dim=2) / std**2
+    )
+    contact_count = torch.sum(in_contact, dim=1)
+    return torch.sum(no_slide_score * in_contact.float(), dim=1) / torch.clamp(
+        contact_count, min=1
     )
 
 
