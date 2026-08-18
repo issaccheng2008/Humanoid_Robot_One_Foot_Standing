@@ -83,6 +83,9 @@ MIN_BASE_HEIGHT = 0.20
 MAX_BASE_TILT = math.radians(65.0)
 INITIAL_FOOT_LIFT_HEIGHT = 0.005
 MAX_FOOT_LIFT_HEIGHT = 0.05
+EXCESSIVE_FOOT_LIFT_HEIGHT_THRESHOLD = 0.06
+# A 20.0/m slope decreases the normalized score by 0.2 per centimeter.
+EXCESSIVE_FOOT_LIFT_SCORE_DECREASE_PER_METER = 20.0
 FOOT_LIFT_HEIGHT_CURRICULUM_ITERATIONS = 2000
 ROLLOUT_STEPS_PER_ITERATION = 24
 FOOT_REWARD_DECAY_START_ITERATION = 200
@@ -515,6 +518,12 @@ class RewardsCfg:
         weight=1.0,
         params={
             "max_foot_lift_height": INITIAL_FOOT_LIFT_HEIGHT,
+            "excessive_lift_height_threshold": (
+                EXCESSIVE_FOOT_LIFT_HEIGHT_THRESHOLD
+            ),
+            "excessive_lift_score_decrease_per_meter": (
+                EXCESSIVE_FOOT_LIFT_SCORE_DECREASE_PER_METER
+            ),
             "command_zero_weight": ONE_FOOT_COMMAND_ZERO_REWARD_WEIGHT,
             "command_one_weight": ONE_FOOT_COMMAND_ONE_REWARD_WEIGHT,
             "time_off_ground_base_value": TIME_OFF_GROUND_BASE_VALUE,
