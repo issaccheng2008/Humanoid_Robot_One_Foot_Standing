@@ -103,7 +103,10 @@ LEG_ROLL_VELOCITY_PENALTY_WEIGHT = 0.0
 LEG_OUTWARD_ROLL_THRESHOLD = math.radians(10.0)
 LEG_OUTWARD_ROLL_PENALTY_WEIGHT = -0.5
 COMMAND_ZERO_DEFAULT_JOINT_POSE_STD = math.radians(15.0)
+COMMAND_ZERO_DEFAULT_JOINT_POSE_INITIAL_REWARD_WEIGHT = 0.1
 COMMAND_ZERO_DEFAULT_JOINT_POSE_REWARD_WEIGHT = 1.0
+COMMAND_ZERO_DEFAULT_JOINT_POSE_REWARD_START_ITERATION = 500
+COMMAND_ZERO_DEFAULT_JOINT_POSE_REWARD_END_ITERATION = 2000
 EL05_RATED_TORQUE = 4
 ONE_FOOT_COMMAND_NAME = "lift_one_foot_in_the_air"
 
@@ -504,7 +507,7 @@ class RewardsCfg:
     )
     command_zero_default_joint_pose = RewTerm(
         func=mdp.command_zero_default_joint_pose,
-        weight=COMMAND_ZERO_DEFAULT_JOINT_POSE_REWARD_WEIGHT,
+        weight=COMMAND_ZERO_DEFAULT_JOINT_POSE_INITIAL_REWARD_WEIGHT,
         params={
             "std": COMMAND_ZERO_DEFAULT_JOINT_POSE_STD,
             "command_name": ONE_FOOT_COMMAND_NAME,
@@ -602,6 +605,25 @@ class CurriculumCfg:
             ),
             "end_step": (
                 FOOT_REWARD_DECAY_END_ITERATION * ROLLOUT_STEPS_PER_ITERATION
+            ),
+        },
+    )
+    command_zero_default_joint_pose_weight = CurrTerm(
+        func=mdp.modify_reward_weight_proportionally,
+        params={
+            "term_name": "command_zero_default_joint_pose",
+            "start_weight": COMMAND_ZERO_DEFAULT_JOINT_POSE_INITIAL_REWARD_WEIGHT,
+            "final_multiplier": (
+                COMMAND_ZERO_DEFAULT_JOINT_POSE_REWARD_WEIGHT
+                / COMMAND_ZERO_DEFAULT_JOINT_POSE_INITIAL_REWARD_WEIGHT
+            ),
+            "start_step": (
+                COMMAND_ZERO_DEFAULT_JOINT_POSE_REWARD_START_ITERATION
+                * ROLLOUT_STEPS_PER_ITERATION
+            ),
+            "end_step": (
+                COMMAND_ZERO_DEFAULT_JOINT_POSE_REWARD_END_ITERATION
+                * ROLLOUT_STEPS_PER_ITERATION
             ),
         },
     )
