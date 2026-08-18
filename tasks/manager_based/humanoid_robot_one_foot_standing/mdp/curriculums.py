@@ -25,8 +25,8 @@ def _proportional_value(
 ) -> float:
     """Geometrically scale a value over a clamped training interval."""
 
-    if not 0.0 < final_multiplier <= 1.0:
-        raise ValueError("final_multiplier must be in the interval (0, 1].")
+    if final_multiplier <= 0.0:
+        raise ValueError("final_multiplier must be positive.")
     progress = (current_step - start_step) / (end_step - start_step)
     progress = max(0.0, min(1.0, progress))
     return start_value * final_multiplier**progress
