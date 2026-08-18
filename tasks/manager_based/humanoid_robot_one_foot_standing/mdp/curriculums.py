@@ -32,6 +32,12 @@ def _proportional_value(
     return start_value * final_multiplier**progress
 
 
+def _effective_training_step(env: ManagerBasedRLEnv, step_offset: int) -> int:
+    """Return the curriculum step, including any progress from a resumed run."""
+
+    return int(env.common_step_counter) + step_offset
+
+
 class modify_reward_param_linearly(ManagerTermBase):
     """Linearly move one numeric reward parameter between two values."""
 
@@ -42,11 +48,14 @@ class modify_reward_param_linearly(ManagerTermBase):
         param_name = cfg.params["param_name"]
         start_step = cfg.params["start_step"]
         end_step = cfg.params["end_step"]
+        step_offset = cfg.params["step_offset"]
 
         if start_step < 0:
             raise ValueError("start_step must be non-negative.")
         if end_step <= start_step:
             raise ValueError("end_step must be greater than start_step.")
+        if step_offset < 0:
+            raise ValueError("step_offset must be non-negative.")
 
         self._term_cfg = env.reward_manager.get_term_cfg(term_name)
         if param_name not in self._term_cfg.params:
@@ -64,10 +73,12 @@ class modify_reward_param_linearly(ManagerTermBase):
         end_value: float,
         start_step: int,
         end_step: int,
+        step_offset: int,
     ) -> float:
         del env_ids
 
-        progress = (env.common_step_counter - start_step) / (end_step - start_step)
+        current_step = _effective_training_step(env, step_offset)
+        progress = (current_step - start_step) / (end_step - start_step)
         progress = max(0.0, min(1.0, progress))
         value = start_value + progress * (end_value - start_value)
 
@@ -88,11 +99,14 @@ class modify_reward_param_proportionally(ManagerTermBase):
         param_name = cfg.params["param_name"]
         start_step = cfg.params["start_step"]
         end_step = cfg.params["end_step"]
+        step_offset = cfg.params["step_offset"]
 
         if start_step < 0:
             raise ValueError("start_step must be non-negative.")
         if end_step <= start_step:
             raise ValueError("end_step must be greater than start_step.")
+        if step_offset < 0:
+            raise ValueError("step_offset must be non-negative.")
 
         self._term_cfg = env.reward_manager.get_term_cfg(term_name)
         if param_name not in self._term_cfg.params:
@@ -110,13 +124,14 @@ class modify_reward_param_proportionally(ManagerTermBase):
         final_multiplier: float,
         start_step: int,
         end_step: int,
+        step_offset: int,
     ) -> float:
         del env_ids
 
         value = _proportional_value(
             start_value,
             final_multiplier,
-            env.common_step_counter,
+            _effective_training_step(env, step_offset),
             start_step,
             end_step,
         )
@@ -135,10 +150,13 @@ class modify_reward_weight_proportionally(ManagerTermBase):
 
         start_step = cfg.params["start_step"]
         end_step = cfg.params["end_step"]
+        step_offset = cfg.params["step_offset"]
         if start_step < 0:
             raise ValueError("start_step must be non-negative.")
         if end_step <= start_step:
             raise ValueError("end_step must be greater than start_step.")
+        if step_offset < 0:
+            raise ValueError("step_offset must be non-negative.")
 
         self._term_cfg = env.reward_manager.get_term_cfg(cfg.params["term_name"])
 
@@ -151,13 +169,14 @@ class modify_reward_weight_proportionally(ManagerTermBase):
         final_multiplier: float,
         start_step: int,
         end_step: int,
+        step_offset: int,
     ) -> float:
         del env_ids
 
         weight = _proportional_value(
             start_weight,
             final_multiplier,
-            env.common_step_counter,
+            _effective_training_step(env, step_offset),
             start_step,
             end_step,
         )
@@ -176,10 +195,13 @@ class modify_reward_weight_linearly(ManagerTermBase):
 
         start_step = cfg.params["start_step"]
         end_step = cfg.params["end_step"]
+        step_offset = cfg.params["step_offset"]
         if start_step < 0:
             raise ValueError("start_step must be non-negative.")
         if end_step <= start_step:
             raise ValueError("end_step must be greater than start_step.")
+        if step_offset < 0:
+            raise ValueError("step_offset must be non-negative.")
 
         self._term_cfg = env.reward_manager.get_term_cfg(cfg.params["term_name"])
 
@@ -192,10 +214,12 @@ class modify_reward_weight_linearly(ManagerTermBase):
         end_value: float,
         start_step: int,
         end_step: int,
+        step_offset: int,
     ) -> float:
         del env_ids
 
-        progress = (env.common_step_counter - start_step) / (end_step - start_step)
+        current_step = _effective_training_step(env, step_offset)
+        progress = (current_step - start_step) / (end_step - start_step)
         if progress<0:
             weight = 0
         else:
@@ -205,4 +229,3 @@ class modify_reward_weight_linearly(ManagerTermBase):
             self._term_cfg.weight = weight
             env.reward_manager.set_term_cfg(term_name, self._term_cfg)
         return weight
-
