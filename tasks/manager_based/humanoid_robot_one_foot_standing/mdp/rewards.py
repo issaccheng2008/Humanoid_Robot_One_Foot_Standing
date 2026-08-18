@@ -347,6 +347,8 @@ class one_foot_command_reward(ManagerTermBase):
         self,
         env: ManagerBasedRLEnv,
         max_foot_lift_height: float,
+        excessive_lift_height_threshold: float,
+        excessive_lift_score_decrease_per_meter: float,
         command_zero_weight: float,
         command_one_weight: float,
         time_off_ground_base_value: float,
@@ -359,6 +361,12 @@ class one_foot_command_reward(ManagerTermBase):
         del sole_vertices
         if max_foot_lift_height <= 0.0:
             raise ValueError("max_foot_lift_height must be positive.")
+        if excessive_lift_height_threshold <= 0.0:
+            raise ValueError("excessive_lift_height_threshold must be positive.")
+        if excessive_lift_score_decrease_per_meter < 0.0:
+            raise ValueError(
+                "excessive_lift_score_decrease_per_meter must be non-negative."
+            )
 
         robot: Articulation = env.scene[asset_cfg.name]
         sensor: ContactSensor = env.scene.sensors[sensor_cfg.name]
@@ -397,6 +405,14 @@ class one_foot_command_reward(ManagerTermBase):
         lift_score = torch.clamp(
             swing_minimum_height / max_foot_lift_height, min=0.0, max=1.0
         )
+        excessive_lift_score_decrease = (
+            torch.clamp(
+                swing_minimum_height - excessive_lift_height_threshold,
+                min=0.0,
+            )
+            * excessive_lift_score_decrease_per_meter
+        )
+        lift_score -= excessive_lift_score_decrease
         lift_score *= (support_contact & ~swing_contact).float()
         air_time_value = time_off_ground_value(
             env,
