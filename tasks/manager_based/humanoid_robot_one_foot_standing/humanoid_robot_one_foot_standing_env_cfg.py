@@ -99,6 +99,8 @@ LEG_ROLL_VELOCITY_THRESHOLD = math.radians(45.0)
 LEG_ROLL_VELOCITY_PENALTY_WEIGHT = 0.0
 LEG_OUTWARD_ROLL_THRESHOLD = math.radians(10.0)
 LEG_OUTWARD_ROLL_PENALTY_WEIGHT = -0.5
+COMMAND_ZERO_DEFAULT_JOINT_POSE_STD = math.radians(15.0)
+COMMAND_ZERO_DEFAULT_JOINT_POSE_REWARD_WEIGHT = 1.0
 EL05_RATED_TORQUE = 4
 ONE_FOOT_COMMAND_NAME = "lift_one_foot_in_the_air"
 
@@ -494,6 +496,17 @@ class RewardsCfg:
             "outward_direction_signs": LEG_ROLL_OUTWARD_DIRECTION_SIGNS,
             "asset_cfg": SceneEntityCfg(
                 "robot", joint_names=LEG_ROLL_JOINT_NAMES, preserve_order=True
+            ),
+        },
+    )
+    command_zero_default_joint_pose = RewTerm(
+        func=mdp.command_zero_default_joint_pose,
+        weight=COMMAND_ZERO_DEFAULT_JOINT_POSE_REWARD_WEIGHT,
+        params={
+            "std": COMMAND_ZERO_DEFAULT_JOINT_POSE_STD,
+            "command_name": ONE_FOOT_COMMAND_NAME,
+            "asset_cfg": SceneEntityCfg(
+                "robot", joint_names=LEG_JOINT_NAMES, preserve_order=True
             ),
         },
     )

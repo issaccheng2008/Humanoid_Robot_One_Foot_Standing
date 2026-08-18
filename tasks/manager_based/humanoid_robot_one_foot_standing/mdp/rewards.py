@@ -117,6 +117,29 @@ def leg_outward_roll_excess(
     return torch.sum(excess_angle / angle_threshold, dim=1)
 
 
+def command_zero_default_joint_pose(
+    env: ManagerBasedRLEnv,
+    std: float,
+    command_name: str,
+    asset_cfg: SceneEntityCfg,
+) -> torch.Tensor:
+    """Reward the configured spawn joint pose only while the lift command is zero."""
+
+    if std <= 0.0:
+        raise ValueError("std must be positive.")
+
+    robot: Articulation = env.scene[asset_cfg.name]
+    joint_deviation = (
+        robot.data.joint_pos[:, asset_cfg.joint_ids]
+        - robot.data.default_joint_pos[:, asset_cfg.joint_ids]
+    )
+    pose_error = torch.sum(torch.square(joint_deviation), dim=1)
+    pose_score = torch.exp(-pose_error / std**2)
+
+    lift_command = env.command_manager.get_command(command_name)[:, 0] > 0.5
+    return pose_score * (~lift_command).float()
+
+
 def is_any_terminated_term(
     env: ManagerBasedRLEnv, term_keys: str | list[str]
 ) -> torch.Tensor:
