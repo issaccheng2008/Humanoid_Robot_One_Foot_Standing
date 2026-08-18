@@ -34,7 +34,7 @@ class CanonicalJointPositionAction(JointPositionAction):
         physical_actions = actions.clone()
         support_is_left = (
             self._env.command_manager.get_command(self.cfg.command_name)[:, 1]
-            > 0.5
+            > 1
         )
         physical_actions[support_is_left] = mirror_joint_data(
             actions[support_is_left]
