@@ -77,6 +77,8 @@ LEG_ROLL_JOINT_NAMES = ["r_leg_roll_joint", "l_leg_roll_joint"]
 # Both axes point along +X: outward is negative for physical right and positive for left.
 LEG_ROLL_OUTWARD_DIRECTION_SIGNS = (-1.0, 1.0)
 
+# False: always use physical right support/left swing with no mirroring.
+ENABLE_LEFT_RIGHT_SWITCHING = False
 MIN_BASE_HEIGHT = 0.20
 MAX_BASE_TILT = math.radians(65.0)
 INITIAL_FOOT_LIFT_HEIGHT = 0.005
@@ -211,13 +213,14 @@ class HumanoidRobotOneFootStandingSceneCfg(InteractiveSceneCfg):
 
 @configclass
 class CommandsCfg:
-    """Binary lift command; support side is randomized once per episode."""
+    """Binary lift command with configurable per-episode support-side switching."""
 
     lift_one_foot_in_the_air = mdp.OneFootStandingCommandCfg(
         asset_name="robot",
         resampling_time_range=(8.0, 8.0),
         initial_stand_time_range_s=(1.0, 2.0),
         lift_time_range_s=(3.0, 5.0),
+        enable_left_right_switching=ENABLE_LEFT_RIGHT_SWITCHING,
         support_left_probability=0.5,
         debug_vis=False,
     )
