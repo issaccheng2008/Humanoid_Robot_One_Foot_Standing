@@ -269,7 +269,8 @@ def swing_foot_airborne(
         time_off_ground_growth_rate,
     )
     lift_score = (support_contact & ~swing_contact).float() * air_time_value
-    stand_penalty = -torch.any(~in_contact, dim=1).float()
+    # stand_penalty = -torch.any(~in_contact, dim=1).float()
+    stand_penalty=0
     return torch.where(lift_command, lift_score, stand_penalty)
 
 
