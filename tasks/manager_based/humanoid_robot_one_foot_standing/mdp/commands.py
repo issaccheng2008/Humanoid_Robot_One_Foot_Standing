@@ -16,7 +16,9 @@ class OneFootStandingCommand(CommandTerm):
 
     Command column 0 is the policy-visible binary lift command. Column 1 is a
     hidden physical-side selector (0 = right support, 1 = left support) used by
-    observations, actions, and rewards to implement canonicalization.
+    observations, actions, and rewards to implement canonicalization. When
+    switching is disabled, column 1 remains zero so every subsystem uses the
+    physical right foot as support without any mirroring.
     """
 
     cfg: "OneFootStandingCommandCfg"
@@ -53,10 +55,14 @@ class OneFootStandingCommand(CommandTerm):
         self._lift_duration_s[env_ids] = torch.empty(
             num_resets, device=self.device
         ).uniform_(*self.cfg.lift_time_range_s)
-        self._command[env_ids, 1] = (
-            torch.rand_like(self._command[env_ids, 1])
-            < self.cfg.support_left_probability
-        ).float()
+        if self.cfg.enable_left_right_switching:
+            self._command[env_ids, 1] = (
+                torch.rand_like(self._command[env_ids, 1])
+                < self.cfg.support_left_probability
+            ).float()
+        else:
+            # Canonical physical side: right support (index 0), left swing.
+            self._command[env_ids, 1] = 0.0
         self._command[env_ids, 0] = 0.0
         return super().reset(env_ids)
 
@@ -89,4 +95,5 @@ class OneFootStandingCommandCfg(CommandTermCfg):
     asset_name: str = "robot"
     initial_stand_time_range_s: tuple[float, float] = (1.0, 2.0)
     lift_time_range_s: tuple[float, float] = (3.0, 5.0)
+    enable_left_right_switching: bool = True
     support_left_probability: float = 0.5
