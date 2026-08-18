@@ -120,13 +120,16 @@ def leg_outward_roll_excess(
 def command_zero_default_joint_pose(
     env: ManagerBasedRLEnv,
     std: float,
+    post_lift_delay_s: float,
     command_name: str,
     asset_cfg: SceneEntityCfg,
 ) -> torch.Tensor:
-    """Reward the configured spawn joint pose only while the lift command is zero."""
+    """Reward the spawn pose during command zero, after any post-lift delay."""
 
     if std <= 0.0:
         raise ValueError("std must be positive.")
+    if post_lift_delay_s < 0.0:
+        raise ValueError("post_lift_delay_s must be non-negative.")
 
     robot: Articulation = env.scene[asset_cfg.name]
     joint_deviation = (
@@ -137,7 +140,9 @@ def command_zero_default_joint_pose(
     pose_score = torch.exp(-pose_error / std**2)
 
     lift_command = env.command_manager.get_command(command_name)[:, 0] > 0.5
-    return pose_score * (~lift_command).float()
+    command_term = env.command_manager.get_term(command_name)
+    delay_complete = command_term.time_since_lift_ended_s >= post_lift_delay_s
+    return pose_score * (~lift_command & delay_complete).float()
 
 
 def is_any_terminated_term(

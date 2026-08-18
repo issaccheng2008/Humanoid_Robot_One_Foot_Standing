@@ -38,10 +38,19 @@ class OneFootStandingCommand(CommandTerm):
             self.num_envs, device=self.device
         )
         self._lift_duration_s = torch.zeros(self.num_envs, device=self.device)
+        self._time_since_lift_ended_s = torch.full(
+            (self.num_envs,), torch.inf, device=self.device
+        )
 
     @property
     def command(self) -> torch.Tensor:
         return self._command
+
+    @property
+    def time_since_lift_ended_s(self) -> torch.Tensor:
+        """Time since the lift command most recently changed from one to zero."""
+
+        return self._time_since_lift_ended_s
 
     def reset(self, env_ids: Sequence[int] | None = None) -> dict[str, float]:
         if env_ids is None or isinstance(env_ids, slice):
@@ -64,6 +73,8 @@ class OneFootStandingCommand(CommandTerm):
             # Canonical physical side: right support (index 0), left swing.
             self._command[env_ids, 1] = 0.0
         self._command[env_ids, 0] = 0.0
+        # The initial command-zero phase should retain the default-pose reward.
+        self._time_since_lift_ended_s[env_ids] = torch.inf
         return super().reset(env_ids)
 
     def _resample_command(self, env_ids: Sequence[int]) -> None:
@@ -73,9 +84,21 @@ class OneFootStandingCommand(CommandTerm):
         elapsed_time_s = self._env.episode_length_buf * self._env.step_dt
         lift_start_s = self._initial_stand_duration_s
         lift_end_s = lift_start_s + self._lift_duration_s
-        self._command[:, 0] = (
+        previous_lift_command = self._command[:, 0] > 0.5
+        lift_command = (
             (elapsed_time_s >= lift_start_s) & (elapsed_time_s < lift_end_s)
-        ).float()
+        )
+        lift_just_ended = previous_lift_command & ~lift_command
+        self._time_since_lift_ended_s = torch.where(
+            lift_command,
+            torch.zeros_like(self._time_since_lift_ended_s),
+            torch.where(
+                lift_just_ended,
+                torch.zeros_like(self._time_since_lift_ended_s),
+                self._time_since_lift_ended_s + self._env.step_dt,
+            ),
+        )
+        self._command[:, 0] = lift_command.float()
 
     def _update_metrics(self) -> None:
         pass
