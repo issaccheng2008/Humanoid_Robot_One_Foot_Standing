@@ -166,3 +166,43 @@ class modify_reward_weight_proportionally(ManagerTermBase):
             env.reward_manager.set_term_cfg(term_name, self._term_cfg)
 
         return weight
+
+
+class modify_reward_weight_linearly(ManagerTermBase):
+    """Proportionally scale a reward term's manager-level weight."""
+
+    def __init__(self, cfg: CurriculumTermCfg, env: ManagerBasedRLEnv):
+        super().__init__(cfg, env)
+
+        start_step = cfg.params["start_step"]
+        end_step = cfg.params["end_step"]
+        if start_step < 0:
+            raise ValueError("start_step must be non-negative.")
+        if end_step <= start_step:
+            raise ValueError("end_step must be greater than start_step.")
+
+        self._term_cfg = env.reward_manager.get_term_cfg(cfg.params["term_name"])
+
+    def __call__(
+        self,
+        env: ManagerBasedRLEnv,
+        env_ids: Sequence[int],
+        term_name: str,
+        start_value: float,
+        end_value: float,
+        start_step: int,
+        end_step: int,
+    ) -> float:
+        del env_ids
+
+        progress = (env.common_step_counter - start_step) / (end_step - start_step)
+        if progress<0:
+            weight = 0
+        else:
+            progress = max(0.0, min(1.0, progress))
+            weight = start_value + progress * (end_value - start_value)
+        if self._term_cfg.weight != weight:
+            self._term_cfg.weight = weight
+            env.reward_manager.set_term_cfg(term_name, self._term_cfg)
+        return weight
+

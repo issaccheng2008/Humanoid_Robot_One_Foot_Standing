@@ -85,11 +85,11 @@ INITIAL_FOOT_LIFT_HEIGHT = 0.005
 MAX_FOOT_LIFT_HEIGHT = 0.05
 EXCESSIVE_FOOT_LIFT_HEIGHT_THRESHOLD = 0.06
 # A 20.0/m slope decreases the normalized score by 0.2 per centimeter.
-EXCESSIVE_FOOT_LIFT_SCORE_DECREASE_PER_METER = 20.0
+EXCESSIVE_FOOT_LIFT_SCORE_DECREASE_PER_METER = 10.0
 FOOT_LIFT_HEIGHT_CURRICULUM_ITERATIONS = 2000
 ROLLOUT_STEPS_PER_ITERATION = 24
-FOOT_REWARD_DECAY_START_ITERATION = 200
-FOOT_REWARD_DECAY_END_ITERATION = 700
+FOOT_REWARD_DECAY_START_ITERATION = 1000
+FOOT_REWARD_DECAY_END_ITERATION = 2000
 FOOT_REWARD_FINAL_MULTIPLIER = 0.7
 ONE_FOOT_COMMAND_ZERO_REWARD_WEIGHT = 1.0
 ONE_FOOT_COMMAND_ONE_REWARD_WEIGHT = 2.5
@@ -103,10 +103,15 @@ LEG_ROLL_VELOCITY_PENALTY_WEIGHT = 0.0
 LEG_OUTWARD_ROLL_THRESHOLD = math.radians(10.0)
 LEG_OUTWARD_ROLL_PENALTY_WEIGHT = -0.5
 COMMAND_ZERO_DEFAULT_JOINT_POSE_STD = math.radians(15.0)
-COMMAND_ZERO_DEFAULT_JOINT_POSE_INITIAL_REWARD_WEIGHT = 0.1
-COMMAND_ZERO_DEFAULT_JOINT_POSE_REWARD_WEIGHT = 1.0
-COMMAND_ZERO_DEFAULT_JOINT_POSE_REWARD_START_ITERATION = 500
-COMMAND_ZERO_DEFAULT_JOINT_POSE_REWARD_END_ITERATION = 2000
+COMMAND_ZERO_DEFAULT_JOINT_POSE_INITIAL_REWARD_WEIGHT = 7
+COMMAND_ZERO_DEFAULT_JOINT_POSE_REWARD_WEIGHT = 1.5
+COMMAND_ZERO_DEFAULT_JOINT_POSE_REWARD_START_ITERATION = 250
+COMMAND_ZERO_DEFAULT_JOINT_POSE_REWARD_END_ITERATION = 500
+
+COMMAND_ZERO_DEFAULT_JOINT_POSE_REWARD_STD_START = 500
+COMMAND_ZERO_DEFAULT_JOINT_POSE_REWARD_STD_END = 1500
+COMMAND_ZERO_DEFAULT_JOINT_INICIAL_POSE_STD = math.radians(20.0)
+
 EL05_RATED_TORQUE = 4
 ONE_FOOT_COMMAND_NAME = "lift_one_foot_in_the_air"
 
@@ -425,7 +430,7 @@ class RewardsCfg:
     )
     termination_penalty = RewTerm(
         func=mdp.is_any_terminated_term,
-        weight=-200.0,
+        weight=-100.0,
         params={"term_keys": ["bad_orientation", "low_base_height"]},
     )
     flat_orientation_l2 = RewTerm(func=mdp.flat_orientation_l2, weight=-0.5)
@@ -507,9 +512,9 @@ class RewardsCfg:
     )
     command_zero_default_joint_pose = RewTerm(
         func=mdp.command_zero_default_joint_pose,
-        weight=COMMAND_ZERO_DEFAULT_JOINT_POSE_INITIAL_REWARD_WEIGHT,
+        weight=0.0,
         params={
-            "std": COMMAND_ZERO_DEFAULT_JOINT_POSE_STD,
+            "std": COMMAND_ZERO_DEFAULT_JOINT_INICIAL_POSE_STD,
             "command_name": ONE_FOOT_COMMAND_NAME,
             "asset_cfg": SceneEntityCfg(
                 "robot", joint_names=LEG_JOINT_NAMES, preserve_order=True
@@ -609,14 +614,11 @@ class CurriculumCfg:
         },
     )
     command_zero_default_joint_pose_weight = CurrTerm(
-        func=mdp.modify_reward_weight_proportionally,
+        func=mdp.modify_reward_weight_linearly,
         params={
             "term_name": "command_zero_default_joint_pose",
-            "start_weight": COMMAND_ZERO_DEFAULT_JOINT_POSE_INITIAL_REWARD_WEIGHT,
-            "final_multiplier": (
-                COMMAND_ZERO_DEFAULT_JOINT_POSE_REWARD_WEIGHT
-                / COMMAND_ZERO_DEFAULT_JOINT_POSE_INITIAL_REWARD_WEIGHT
-            ),
+            "start_value": COMMAND_ZERO_DEFAULT_JOINT_POSE_INITIAL_REWARD_WEIGHT,
+            "end_value": COMMAND_ZERO_DEFAULT_JOINT_POSE_REWARD_WEIGHT,
             "start_step": (
                 COMMAND_ZERO_DEFAULT_JOINT_POSE_REWARD_START_ITERATION
                 * ROLLOUT_STEPS_PER_ITERATION
@@ -624,6 +626,24 @@ class CurriculumCfg:
             "end_step": (
                 COMMAND_ZERO_DEFAULT_JOINT_POSE_REWARD_END_ITERATION
                 * ROLLOUT_STEPS_PER_ITERATION
+            ),
+        },
+    )
+    command_zero_default_joint_pose_std  = CurrTerm(
+        func=mdp.modify_reward_param_proportionally,
+        params={
+            "term_name": "command_zero_default_joint_pose",
+            "param_name": "std",
+            "start_value": COMMAND_ZERO_DEFAULT_JOINT_INICIAL_POSE_STD,
+            "final_multiplier": (
+                COMMAND_ZERO_DEFAULT_JOINT_POSE_STD
+                / COMMAND_ZERO_DEFAULT_JOINT_INICIAL_POSE_STD
+            ),
+            "start_step": (
+                COMMAND_ZERO_DEFAULT_JOINT_POSE_REWARD_STD_START * ROLLOUT_STEPS_PER_ITERATION
+            ),
+            "end_step": (
+                COMMAND_ZERO_DEFAULT_JOINT_POSE_REWARD_STD_END * ROLLOUT_STEPS_PER_ITERATION
             ),
         },
     )
