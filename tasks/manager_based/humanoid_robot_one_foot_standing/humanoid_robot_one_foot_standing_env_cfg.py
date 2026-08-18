@@ -88,6 +88,9 @@ EXCESSIVE_FOOT_LIFT_HEIGHT_THRESHOLD = 0.06
 EXCESSIVE_FOOT_LIFT_SCORE_DECREASE_PER_METER = 10.0
 FOOT_LIFT_HEIGHT_CURRICULUM_ITERATIONS = 2000
 ROLLOUT_STEPS_PER_ITERATION = 24
+# Set this to the checkpoint's completed iteration when resuming; use 0 for a fresh run.
+CURRICULUM_RESUME_ITERATION = 0
+CURRICULUM_STEP_OFFSET = CURRICULUM_RESUME_ITERATION * ROLLOUT_STEPS_PER_ITERATION
 FOOT_REWARD_DECAY_START_ITERATION = 1000
 FOOT_REWARD_DECAY_END_ITERATION = 2000
 FOOT_REWARD_FINAL_MULTIPLIER = 0.7
@@ -578,6 +581,7 @@ class CurriculumCfg:
             "start_value": INITIAL_FOOT_LIFT_HEIGHT,
             "end_value": MAX_FOOT_LIFT_HEIGHT,
             "start_step": 0,
+            "step_offset": CURRICULUM_STEP_OFFSET,
             "end_step": (
                 FOOT_LIFT_HEIGHT_CURRICULUM_ITERATIONS
                 * ROLLOUT_STEPS_PER_ITERATION
@@ -591,6 +595,7 @@ class CurriculumCfg:
             "param_name": "command_one_weight",
             "start_value": ONE_FOOT_COMMAND_ONE_REWARD_WEIGHT,
             "final_multiplier": FOOT_REWARD_FINAL_MULTIPLIER,
+            "step_offset": CURRICULUM_STEP_OFFSET,
             "start_step": (
                 FOOT_REWARD_DECAY_START_ITERATION * ROLLOUT_STEPS_PER_ITERATION
             ),
@@ -605,6 +610,7 @@ class CurriculumCfg:
             "term_name": "swing_foot_airborne",
             "start_weight": SWING_FOOT_AIRBORNE_REWARD_WEIGHT,
             "final_multiplier": FOOT_REWARD_FINAL_MULTIPLIER,
+            "step_offset": CURRICULUM_STEP_OFFSET,
             "start_step": (
                 FOOT_REWARD_DECAY_START_ITERATION * ROLLOUT_STEPS_PER_ITERATION
             ),
@@ -619,6 +625,7 @@ class CurriculumCfg:
             "term_name": "command_zero_default_joint_pose",
             "start_value": COMMAND_ZERO_DEFAULT_JOINT_POSE_INITIAL_REWARD_WEIGHT,
             "end_value": COMMAND_ZERO_DEFAULT_JOINT_POSE_REWARD_WEIGHT,
+            "step_offset": CURRICULUM_STEP_OFFSET,
             "start_step": (
                 COMMAND_ZERO_DEFAULT_JOINT_POSE_REWARD_START_ITERATION
                 * ROLLOUT_STEPS_PER_ITERATION
@@ -639,6 +646,7 @@ class CurriculumCfg:
                 COMMAND_ZERO_DEFAULT_JOINT_POSE_STD
                 / COMMAND_ZERO_DEFAULT_JOINT_INICIAL_POSE_STD
             ),
+            "step_offset": CURRICULUM_STEP_OFFSET,
             "start_step": (
                 COMMAND_ZERO_DEFAULT_JOINT_POSE_REWARD_STD_START * ROLLOUT_STEPS_PER_ITERATION
             ),
