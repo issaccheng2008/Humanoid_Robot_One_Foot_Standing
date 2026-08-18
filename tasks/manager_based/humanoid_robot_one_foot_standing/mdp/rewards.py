@@ -34,13 +34,22 @@ def base_linear_velocity_zero(
 def base_angular_velocity_zero(
     env: ManagerBasedRLEnv, std: float, asset_cfg: SceneEntityCfg
 ) -> torch.Tensor:
-    """Reward zero roll, pitch, and yaw angular velocity."""
+    """Reward zero world-frame yaw rate without constraining roll or pitch rates."""
 
     if std <= 0.0:
         raise ValueError("std must be positive.")
     robot: Articulation = env.scene[asset_cfg.name]
-    speed_sq = torch.sum(torch.square(robot.data.root_ang_vel_w), dim=1)
-    return torch.exp(-speed_sq / std**2)
+    yaw_rate_sq = torch.square(robot.data.root_ang_vel_w[:, 2])
+    return torch.exp(-yaw_rate_sq / std**2)
+
+
+def base_yaw_rate_l2(
+    env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg
+) -> torch.Tensor:
+    """Penalize squared world-frame yaw rate only."""
+
+    robot: Articulation = env.scene[asset_cfg.name]
+    return torch.square(robot.data.root_ang_vel_w[:, 2])
 
 
 def base_acceleration_l2(

@@ -442,7 +442,11 @@ class RewardsCfg:
             "asset_cfg": SceneEntityCfg("robot", body_names=[BASE_BODY_NAME]),
         },
     )
-    ang_vel_xy_l2 = RewTerm(func=mdp.ang_vel_xy_l2, weight=-0.2)
+    ang_vel_z_l2 = RewTerm(
+        func=mdp.base_yaw_rate_l2,
+        weight=-0.2,
+        params={"asset_cfg": SceneEntityCfg("robot")},
+    )
     dof_torques_l2 = RewTerm(
         func=mdp.joint_torques_l2,
         weight=-2.0e-7,
