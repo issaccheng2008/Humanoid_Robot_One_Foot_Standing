@@ -82,14 +82,14 @@ ENABLE_LEFT_RIGHT_SWITCHING = False
 MIN_BASE_HEIGHT = 0.26
 MAX_BASE_TILT = math.radians(40.0)
 INITIAL_FOOT_LIFT_HEIGHT = 0.005
-MAX_FOOT_LIFT_HEIGHT = 0.05
+MAX_FOOT_LIFT_HEIGHT = 0.03
 EXCESSIVE_FOOT_LIFT_HEIGHT_THRESHOLD = 0.06
 # A 20.0/m slope decreases the normalized score by 0.2 per centimeter.
 EXCESSIVE_FOOT_LIFT_SCORE_DECREASE_PER_METER = 10.0
 FOOT_LIFT_HEIGHT_CURRICULUM_ITERATIONS = 2000
 ROLLOUT_STEPS_PER_ITERATION = 24
 # Set this to the checkpoint's completed iteration when resuming; use 0 for a fresh run.
-CURRICULUM_RESUME_ITERATION = 200
+CURRICULUM_RESUME_ITERATION = 0
 CURRICULUM_STEP_OFFSET = CURRICULUM_RESUME_ITERATION * ROLLOUT_STEPS_PER_ITERATION
 FOOT_REWARD_DECAY_START_ITERATION = 1000
 FOOT_REWARD_DECAY_END_ITERATION = 2000
@@ -106,7 +106,7 @@ LEG_ROLL_VELOCITY_PENALTY_WEIGHT = 0.0
 LEG_OUTWARD_ROLL_THRESHOLD = math.radians(10.0)
 LEG_OUTWARD_ROLL_PENALTY_WEIGHT = -0.5
 COMMAND_ZERO_DEFAULT_JOINT_POSE_STD = math.radians(20.0)
-COMMAND_ZERO_DEFAULT_JOINT_POSE_POST_LIFT_DELAY_S = 0.5
+COMMAND_ZERO_DEFAULT_JOINT_POSE_POST_LIFT_DELAY_S = 1.0
 COMMAND_ZERO_DEFAULT_JOINT_POSE_INITIAL_REWARD_WEIGHT = 10
 COMMAND_ZERO_DEFAULT_JOINT_POSE_REWARD_WEIGHT =7
 COMMAND_ZERO_DEFAULT_JOINT_POSE_REWARD_START_ITERATION = 250
@@ -235,7 +235,7 @@ class CommandsCfg:
     lift_one_foot_in_the_air = mdp.OneFootStandingCommandCfg(
         asset_name="robot",
         resampling_time_range=(8.0, 8.0),
-        initial_stand_time_range_s=(1.0, 2.0),
+        initial_stand_time_range_s=(1.0, 1.0),
         lift_time_range_s=(3.0, 5.0),
         enable_left_right_switching=ENABLE_LEFT_RIGHT_SWITCHING,
         support_left_probability=0.5,
@@ -490,7 +490,7 @@ class RewardsCfg:
         func=mdp.joint_pos_limits,
         weight=-1.0,
         params={
-            "asset_cfg": SceneEntityCfg("robot", joint_names=ANKLE_JOINT_NAMES)
+            "asset_cfg": SceneEntityCfg("robot", joint_names=LEG_JOINT_NAMES)
         },
     )
     leg_roll_velocity_excess = RewTerm(
