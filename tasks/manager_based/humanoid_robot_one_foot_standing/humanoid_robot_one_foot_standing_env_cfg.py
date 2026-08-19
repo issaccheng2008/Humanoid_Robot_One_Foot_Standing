@@ -89,7 +89,7 @@ EXCESSIVE_FOOT_LIFT_SCORE_DECREASE_PER_METER = 10.0
 FOOT_LIFT_HEIGHT_CURRICULUM_ITERATIONS = 2000
 ROLLOUT_STEPS_PER_ITERATION = 24
 # Set this to the checkpoint's completed iteration when resuming; use 0 for a fresh run.
-CURRICULUM_RESUME_ITERATION = 0
+CURRICULUM_RESUME_ITERATION = 2000
 CURRICULUM_STEP_OFFSET = CURRICULUM_RESUME_ITERATION * ROLLOUT_STEPS_PER_ITERATION
 # Map each RewardsCfg term name to (trigger iteration, new manager-level weight).
 REWARD_WEIGHT_CHANGE_SCHEDULE: dict[str, tuple[int, float]] = {
