@@ -7,7 +7,9 @@
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+import math
+from collections.abc import Mapping, Sequence
+from numbers import Real
 from typing import TYPE_CHECKING
 
 from isaaclab.managers import CurriculumTermCfg, ManagerTermBase
@@ -36,6 +38,73 @@ def _effective_training_step(env: ManagerBasedRLEnv, step_offset: int) -> int:
     """Return the curriculum step, including any progress from a resumed run."""
 
     return int(env.common_step_counter) + step_offset
+
+
+class modify_reward_weights_at_iterations(ManagerTermBase):
+    """Set manager-level reward weights at independently configured iterations."""
+
+    def __init__(self, cfg: CurriculumTermCfg, env: ManagerBasedRLEnv):
+        super().__init__(cfg, env)
+
+        weight_changes = cfg.params["weight_changes"]
+        steps_per_iteration = cfg.params["steps_per_iteration"]
+        step_offset = cfg.params["step_offset"]
+        if not isinstance(weight_changes, Mapping):
+            raise TypeError("weight_changes must map reward names to (iteration, weight).")
+        if not isinstance(steps_per_iteration, int) or isinstance(
+            steps_per_iteration, bool
+        ):
+            raise TypeError("steps_per_iteration must be an integer.")
+        if steps_per_iteration <= 0:
+            raise ValueError("steps_per_iteration must be positive.")
+        if step_offset < 0:
+            raise ValueError("step_offset must be non-negative.")
+
+        self._changes: dict[str, tuple[int, float]] = {}
+        self._term_cfgs = {}
+        for term_name, change in weight_changes.items():
+            if not isinstance(term_name, str) or not term_name:
+                raise ValueError("Each reward term name must be a non-empty string.")
+            if not isinstance(change, (tuple, list)) or len(change) != 2:
+                raise ValueError(
+                    f"Weight change for {term_name!r} must be (iteration, weight)."
+                )
+            iteration, new_weight = change
+            if not isinstance(iteration, int) or isinstance(iteration, bool):
+                raise TypeError(f"Iteration for {term_name!r} must be an integer.")
+            if iteration < 0:
+                raise ValueError(f"Iteration for {term_name!r} must be non-negative.")
+            if not isinstance(new_weight, Real) or not math.isfinite(float(new_weight)):
+                raise ValueError(f"Weight for {term_name!r} must be a finite number.")
+
+            self._changes[term_name] = (
+                iteration * steps_per_iteration,
+                float(new_weight),
+            )
+            self._term_cfgs[term_name] = env.reward_manager.get_term_cfg(term_name)
+
+    def __call__(
+        self,
+        env: ManagerBasedRLEnv,
+        env_ids: Sequence[int],
+        weight_changes: Mapping[str, tuple[int, float]],
+        steps_per_iteration: int,
+        step_offset: int,
+    ) -> float:
+        del env_ids, weight_changes, steps_per_iteration
+
+        current_step = _effective_training_step(env, step_offset)
+        active_changes = 0
+        for term_name, (change_step, new_weight) in self._changes.items():
+            if current_step < change_step:
+                continue
+            active_changes += 1
+            term_cfg = self._term_cfgs[term_name]
+            if term_cfg.weight != new_weight:
+                term_cfg.weight = new_weight
+                env.reward_manager.set_term_cfg(term_name, term_cfg)
+
+        return float(active_changes)
 
 
 class modify_reward_param_linearly(ManagerTermBase):

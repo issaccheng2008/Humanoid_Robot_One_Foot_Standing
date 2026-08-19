@@ -91,6 +91,11 @@ ROLLOUT_STEPS_PER_ITERATION = 24
 # Set this to the checkpoint's completed iteration when resuming; use 0 for a fresh run.
 CURRICULUM_RESUME_ITERATION = 0
 CURRICULUM_STEP_OFFSET = CURRICULUM_RESUME_ITERATION * ROLLOUT_STEPS_PER_ITERATION
+# Map each RewardsCfg term name to (trigger iteration, new manager-level weight).
+REWARD_WEIGHT_CHANGE_SCHEDULE: dict[str, tuple[int, float]] = {
+    # "swing_foot_airborne": (1000, 1.0),
+    # "dof_torques_l2": (1500, -1.0e-5),
+}
 FOOT_REWARD_DECAY_START_ITERATION = 500
 FOOT_REWARD_DECAY_END_ITERATION = 1000
 FOOT_REWARD_FINAL_MULTIPLIER = 0.8
@@ -655,6 +660,14 @@ class CurriculumCfg:
             "end_step": (
                 COMMAND_ZERO_DEFAULT_JOINT_POSE_REWARD_STD_END * ROLLOUT_STEPS_PER_ITERATION
             ),
+        },
+    )
+    scheduled_reward_weight_changes = CurrTerm(
+        func=mdp.modify_reward_weights_at_iterations,
+        params={
+            "weight_changes": REWARD_WEIGHT_CHANGE_SCHEDULE,
+            "steps_per_iteration": ROLLOUT_STEPS_PER_ITERATION,
+            "step_offset": CURRICULUM_STEP_OFFSET,
         },
     )
 
