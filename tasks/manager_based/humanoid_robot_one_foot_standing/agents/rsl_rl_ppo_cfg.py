@@ -11,6 +11,19 @@ from isaaclab_rl.rsl_rl import (
 )
 
 
+ENTROPY_COEF_CHANGE_AFTER_ITERATION = 1000
+ENTROPY_COEF_AFTER_CHANGE = 0.001
+
+
+@configclass
+class ScheduledEntropyPPOCfg(RslRlPpoAlgorithmCfg):
+    """PPO configuration with a checkpoint-aware entropy coefficient change."""
+
+    class_name: str = f"{__package__}.scheduled_entropy_ppo:ScheduledEntropyPPO"
+    entropy_coef_change_after_iteration: int = ENTROPY_COEF_CHANGE_AFTER_ITERATION
+    entropy_coef_after_change: float = ENTROPY_COEF_AFTER_CHANGE
+
+
 @configclass
 class HumanoidRobotOneFootStandingPPORunnerCfg(RslRlOnPolicyRunnerCfg):
     """RSL-RL PPO configuration for canonical one-foot standing."""
@@ -29,7 +42,7 @@ class HumanoidRobotOneFootStandingPPORunnerCfg(RslRlOnPolicyRunnerCfg):
         activation="elu",
     )
 
-    algorithm = RslRlPpoAlgorithmCfg(
+    algorithm = ScheduledEntropyPPOCfg(
         value_loss_coef=1.0,
         use_clipped_value_loss=True,
         clip_param=0.2,
