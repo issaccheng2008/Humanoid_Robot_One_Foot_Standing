@@ -93,8 +93,10 @@ CURRICULUM_RESUME_ITERATION = 0
 CURRICULUM_STEP_OFFSET = CURRICULUM_RESUME_ITERATION * ROLLOUT_STEPS_PER_ITERATION
 # Map each RewardsCfg term name to (trigger iteration, new manager-level weight).
 REWARD_WEIGHT_CHANGE_SCHEDULE: dict[str, tuple[int, float]] = {
-    # "swing_foot_airborne": (1000, 1.0),
-    # "dof_torques_l2": (1500, -1.0e-5),
+    "action_rate_l2": (500, -0.01),
+    "dof_torque_over_nominal": (600, -0.1),
+    "dof_acc_l2": (500, -2.0e-6),
+    "dof_torques_l2": (500, -2.0e-6)
 }
 FOOT_REWARD_DECAY_START_ITERATION = 500
 FOOT_REWARD_DECAY_END_ITERATION = 1000
@@ -113,7 +115,7 @@ LEG_OUTWARD_ROLL_PENALTY_WEIGHT = -0.5
 COMMAND_ZERO_DEFAULT_JOINT_POSE_STD = math.radians(20.0)
 COMMAND_ZERO_DEFAULT_JOINT_POSE_POST_LIFT_DELAY_S = 1.0
 COMMAND_ZERO_DEFAULT_JOINT_POSE_INITIAL_REWARD_WEIGHT = 10
-COMMAND_ZERO_DEFAULT_JOINT_POSE_REWARD_WEIGHT =6
+COMMAND_ZERO_DEFAULT_JOINT_POSE_REWARD_WEIGHT =7
 COMMAND_ZERO_DEFAULT_JOINT_POSE_REWARD_START_ITERATION = 250
 COMMAND_ZERO_DEFAULT_JOINT_POSE_REWARD_END_ITERATION = 500
 
@@ -121,7 +123,7 @@ COMMAND_ZERO_DEFAULT_JOINT_POSE_REWARD_STD_START = 350
 COMMAND_ZERO_DEFAULT_JOINT_POSE_REWARD_STD_END = 1000
 COMMAND_ZERO_DEFAULT_JOINT_INICIAL_POSE_STD = math.radians(20.0)
 
-EL05_RATED_TORQUE = 4
+EL05_RATED_TORQUE = 2.5
 ONE_FOOT_COMMAND_NAME = "lift_one_foot_in_the_air"
 
 # Convex perimeters of the lowest physical sole surfaces, ordered right/left.
@@ -477,7 +479,7 @@ class RewardsCfg:
     )
     dof_torque_over_nominal = RewTerm(
         func=mdp.joint_torque_over_nominal,
-        weight=-0.1,
+        weight=-0.05,
         params={
             "nominal_torque": EL05_RATED_TORQUE,
             "asset_cfg": SceneEntityCfg("robot", joint_names=LEG_JOINT_NAMES),
